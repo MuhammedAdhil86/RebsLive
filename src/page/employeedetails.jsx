@@ -16,6 +16,7 @@ import AttachmentsTab from "../components/profiledetailstabs/attachment_tab.jsx"
 import ActivityTab from "../components/profiledetailstabs/activity_tab.jsx";
 import SettingsTab from "../components/profiledetailstabs/settings_tab.jsx";
 import ManageShiftTab from "../components/profiledetailstabs/manageshift.jsx";
+import NotificationsTab from "../components/profiledetailstabs/notification_tab.jsx";
 
 import axiosInstance from "../service/axiosinstance.js";
 
@@ -235,6 +236,11 @@ export default function EmployeeProfile() {
             ) : activeTab === "Manage Shift" ? (
               <ManageShiftTab
                 employeeUUID={selectedEmployee?.uuid}
+                onSuccess={handleSuccess}
+                onError={handleError}
+              />
+            ) : activeTab === "Notifications" ? (
+              <NotificationsTab
                 onSuccess={handleSuccess}
                 onError={handleError}
               />

@@ -16,6 +16,8 @@ import {
   getCelebrations,
   deleteCelebration,
   removeEmoji,
+  getNotificationTypes,
+  setMyNotificationPreference,
   getNotificationCount, // <- NEW
   markNotificationRead, // <- NEW
   markAllNotificationsRead, // <- NEW
@@ -374,6 +376,30 @@ const announceService = {
         `Error removing emoji #${id}:`,
         error.response?.data || error.message,
       );
+      throw error;
+    }
+  },
+  getNotificationTypes: async (source = "web") => {
+    try {
+      const response = await axiosInstance.get(getNotificationTypes, {
+        params: { source },
+      });
+      return response.data?.data || [];
+    } catch (error) {
+      console.error("Error fetching notification types:", error);
+      throw error;
+    }
+  },
+
+  setMyNotificationPreference: async (typeId, enabled) => {
+    try {
+      const response = await axiosInstance.put(setMyNotificationPreference, {
+        type_id: typeId,
+        enabled,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error updating notification preference:", error);
       throw error;
     }
   },

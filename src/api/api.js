@@ -23,6 +23,9 @@ export const removeEmoji = (id) => `/announcement/emojis/remove/${id}`;
 export const getNotificationCount = "/employee/notification/count";
 export const markNotificationRead = (id) => `/employee/notification/${id}/read`;
 export const markAllNotificationsRead = "/employee/notification/read-all";
+export const getNotificationTypes = "/system/notification/types";
+export const setMyNotificationPreference =
+  "/employee/notification/set-my-preference";
 // Interactive Announcement Features (Likes, Comments, Emojis)
 export const addComment = (id) => `/announcement/comment/add/${id}`;
 export const addEmoji = (id) => `/announcement/emojis/add/${id}`;
