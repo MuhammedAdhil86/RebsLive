@@ -21,10 +21,11 @@ import {
   postSendCustomEmailByPurpose,
   getPurposePlaceholders,
   postSendCustomEmail,
+  deleteAttachmentApi,
 } from "../api/api";
 
 /**
- * Helper: log only in development
+- Helper: log only in development
  */
 const devLog = (...args) => {
   if (import.meta.env.DEV) {
@@ -80,8 +81,78 @@ export const attachmentUpload = async (employeeUUID, attachmentData) => {
 };
 
 /**
- * Fetch list of letter purposes
- * @returns {Promise<string[]>} Array of purpose strings
+ * Delete an employee's attachment/document
+ * Endpoint: DELETE /staff/admin/documents/{employeeUUID}/{documentId}
+ */
+export const deleteAttachment = async (
+  employeeUUID,
+  documentId,
+  { signal } = {},
+) => {
+  if (
+    employeeUUID === null ||
+    employeeUUID === undefined ||
+    String(employeeUUID).trim() === ""
+  ) {
+    throw new Error("Employee UUID is required.");
+  }
+
+  if (
+    documentId === null ||
+    documentId === undefined ||
+    String(documentId).trim() === ""
+  ) {
+    throw new Error("Document ID is required.");
+  }
+
+  const sanitizedEmployeeId = String(employeeUUID).trim();
+  const sanitizedDocumentId = String(documentId).trim();
+
+  const endpoint =
+    typeof deleteAttachmentApi === "function"
+      ? deleteAttachmentApi(sanitizedEmployeeId, sanitizedDocumentId)
+      : String(deleteAttachmentApi)
+          .replace("{employeeUUID}", encodeURIComponent(sanitizedEmployeeId))
+          .replace("{documentId}", encodeURIComponent(sanitizedDocumentId));
+
+  try {
+    const response = await axiosInstance.delete(endpoint, { signal });
+    devLog(
+      `Deleted attachment (${sanitizedDocumentId}) for employee (${sanitizedEmployeeId}):`,
+      response?.data,
+    );
+    return response?.data ?? {};
+  } catch (error) {
+    if (error?.name === "CanceledError" || error?.code === "ERR_CANCELED") {
+      throw error;
+    }
+
+    const message =
+      error?.response?.data?.message ||
+      error?.response?.data?.error ||
+      error?.response?.data?.detail ||
+      error?.message ||
+      "Failed to delete attachment";
+
+    console.error("Error deleting attachment:", {
+      endpoint,
+      employeeUUID: sanitizedEmployeeId,
+      documentId: sanitizedDocumentId,
+      status: error?.response?.status,
+      error: error?.response?.data || message,
+    });
+
+    const normalizedError = new Error(message, { cause: error });
+    if (error?.response) {
+      normalizedError.response = error.response;
+    }
+    throw normalizedError;
+  }
+};
+
+/**
+- Fetch list of letter purposes
+- @returns {Promise<string[]>} Array of purpose strings
  */
 export const fetchLetterPurposes = async () => {
   try {
@@ -154,8 +225,8 @@ export const fetchPurposePlaceholders = async (purpose) => {
 };
 
 /**
- * Send a custom (composed) email
- * POST /admin/send/custom-email
+- Send a custom (composed) email
+- POST /admin/send/custom-email
  */
 export const sendCustomEmailService = async ({
   to = [],
@@ -220,8 +291,8 @@ export const sendCustomEmailService = async ({
 };
 
 /**
- * Send a custom email by purpose
- * POST /admin/send/custom-email/by-purpose/{purpose}
+- Send a custom email by purpose
+- POST /admin/send/custom-email/by-purpose/{purpose}
  */
 export const sendCustomEmailByPurposeService = async ({
   purpose,
@@ -566,8 +637,8 @@ export const getGeneratedLettersService = async () => {
 };
 
 /**
- * Delete a generated letter by ID
- * Endpoint: DELETE /letter/generated/{id}
+- Delete a generated letter by ID
+- Endpoint: DELETE /letter/generated/{id}
  */
 export const deleteGeneratedLetterService = async (id) => {
   if (!id) {
@@ -588,7 +659,7 @@ export const deleteGeneratedLetterService = async (id) => {
 };
 
 /**
- * Send an Email Letter
+- Send an Email Letter
  */
 export const sendLetterService = async (userId, purpose, cc = [], bcc = []) => {
   const isObject = typeof userId === "object" && userId !== null;
@@ -629,10 +700,10 @@ export const sendLetterService = async (userId, purpose, cc = [], bcc = []) => {
 };
 
 /**
- * Delete Email/Letter Template
- * DELETE admin/templates/{id}
+- Delete Email/Letter Template
+- DELETE admin/templates/{id}
  *
- * @param {string|number} id - Template ID
+- @param {string|number} id - Template ID
  */
 export const deleteEmailTemplateService = async (id) => {
   if (!id) {

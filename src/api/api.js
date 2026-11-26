@@ -367,7 +367,8 @@ export const documentListDelete = "/document-list/delete"; // + /{id}
 export const uploadAttachment = "/staff/admin/document/upload/{uuid}";
 export const getCategory = "/admin/document-category/get";
 export const getAttachments = "/staff/admin/document/get/{uuid}";
-
+export const deleteAttachmentApi =
+  "/staff/admin/documents/{employeeUUID}/{documentId}";
 //Hiring
 export const getPlatforms = "/admin/platform/get";
 export const getVacancies = "/company/vaccancy/get";
