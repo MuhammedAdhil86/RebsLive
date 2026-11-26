@@ -1,0 +1,824 @@
+import React, { useEffect, useState, useRef } from "react";
+import DashboardLayout from "../ui/pagelayout";
+import HeaderGlobal from "../ui/headerglobal";
+import avatar from "../assets/img/avatar.svg";
+import { FiSearch, FiMoreHorizontal } from "react-icons/fi";
+import {
+  ChevronDown,
+  Shield,
+  UserCheck,
+  UserX,
+  Trash2,
+  MoreVertical,
+} from "lucide-react";
+import { Icon } from "@iconify/react";
+import { useNavigate } from "react-router-dom";
+import useEmployeeStore from "../store/employeeStore";
+import UniversalTable from "../ui/universal_table";
+import { toast } from "react-toastify";
+import { fetchDeletedUsers } from "../service/employeeService";
+import {
+  getBranchData,
+  getDepartmentData,
+  getDesignationData,
+} from "../service/companyService";
+import DeactivateConfirmationModal from "../ui/deactivatemodal";
+
+// No trailing slash (paths below already start with "/")
+const API_BASE_URL = "https://rebs-hr-cwhyx.ondigitalocean.app";
+
+const TABS = [
+  { key: "all", label: "All Employees" },
+  { key: "active", label: "Active Employees" },
+  { key: "inactive", label: "Inactive Employees" },
+  { key: "deleted", label: "Deleted Employees" },
+];
+
+const EMPTY_FILTERS = {
+  branch_id: "",
+  department_id: "",
+  designation_id: "",
+};
+
+/**
+ * Reusable select with a custom arrow.
+ * - appearance-none removes the browser's default arrow
+ * - the arrow is absolutely positioned, vertically centered, 10px from the right
+ * - pointer-events-none lets clicks pass through the arrow to the select
+ * - pr-8 keeps long text from running under the arrow
+ */
+function FilterSelect({ value, onChange, placeholder, options, getLabel }) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={onChange}
+        className="appearance-none border border-gray-300 bg-white rounded-lg pl-3 pr-8 py-2 text-[12px] text-gray-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-black min-w-[130px] max-w-[170px] truncate"
+      >
+        <option value="">{placeholder}</option>
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>
+            {getLabel(o)}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        size={14}
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500"
+      />
+    </div>
+  );
+}
+
+function ManageEmployees() {
+  const {
+    employees,
+    loading: initialLoading,
+    fetchEmployees,
+  } = useEmployeeStore();
+  const [tab, setTab] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [view, setView] = useState("card");
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+  const dropdownRef = useRef(null);
+  const navigate = useNavigate();
+
+  // Filters + dropdown option lists
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [designations, setDesignations] = useState([]);
+
+  // Local state tracking for deleted data engine
+  const [deletedEmployees, setDeletedEmployees] = useState([]);
+  const [loadingDeleted, setLoadingDeleted] = useState(false);
+
+  const isDeletedTab = tab === "deleted";
+  const loading = isDeletedTab ? loadingDeleted : initialLoading;
+  const hasActiveFilters =
+    filters.branch_id || filters.department_id || filters.designation_id;
+
+  // Load dropdown options once
+  useEffect(() => {
+    const loadFilterOptions = async () => {
+      try {
+        const [b, d, des] = await Promise.all([
+          getBranchData(),
+          getDepartmentData(),
+          getDesignationData(),
+        ]);
+        setBranches(b || []);
+        setDepartments(d || []);
+        setDesignations(des || []);
+      } catch (err) {
+        toast.error("Failed to load filter options.");
+      }
+    };
+    loadFilterOptions();
+  }, []);
+
+  // Load employees (refetches when tab or filters change)
+  useEffect(() => {
+    if (isDeletedTab) {
+      const loadDeletedData = async () => {
+        try {
+          setLoadingDeleted(true);
+          const data = await fetchDeletedUsers();
+          setDeletedEmployees(data || []);
+        } catch (err) {
+          toast.error("Failed to fetch deleted users data.");
+        } finally {
+          setLoadingDeleted(false);
+        }
+      };
+      loadDeletedData();
+    } else {
+      fetchEmployees(filters);
+    }
+    setSelectedRows([]); // Clear check state models on tab/filter changes
+  }, [tab, filters, fetchEmployees]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Only one filter active at a time: picking one resets the others
+  const handleFilterChange = (key) => (e) =>
+    setFilters({ ...EMPTY_FILTERS, [key]: e.target.value });
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "N/A";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const baseDataset = isDeletedTab ? deletedEmployees : employees;
+
+  const filteredData = baseDataset
+    .filter((emp) => {
+      if (isDeletedTab) return true;
+      if (tab === "active")
+        return emp.is_active === true || emp.is_active === "true";
+      if (tab === "inactive")
+        return emp.is_active === false || emp.is_active === "false";
+      return true;
+    })
+    .filter((emp) => {
+      if (!searchTerm) return true;
+      const term = searchTerm.toLowerCase();
+      return (
+        emp.first_name?.toLowerCase().includes(term) ||
+        emp.last_name?.toLowerCase().includes(term) ||
+        emp.department?.toLowerCase().includes(term) ||
+        emp.designation?.toLowerCase().includes(term) ||
+        emp.ph_no?.toString().includes(term) ||
+        emp.email?.toLowerCase().includes(term)
+      );
+    });
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedRows(filteredData.map((d) => d.uuid || d.id));
+    } else {
+      setSelectedRows([]);
+    }
+  };
+
+  const handleSelectRow = (e, targetId) => {
+    e.stopPropagation();
+    setSelectedRows((prev) =>
+      e.target.checked
+        ? [...prev, targetId]
+        : prev.filter((x) => x !== targetId),
+    );
+  };
+
+  const bulkUpdateStatus = async (activate) => {
+    if (selectedRows.length === 0) return;
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(
+        `${API_BASE_URL}/staff/bulk-toggle-activate`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ user_uuids: selectedRows, activate }),
+        },
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || "Failed to update users");
+      }
+
+      toast.success(
+        `Users ${activate ? "activated" : "deactivated"} successfully!`,
+      );
+      setSelectedRows([]);
+      fetchEmployees(filters); // keep active filters applied
+    } catch (err) {
+      console.error("Bulk update failed:", err);
+      toast.error(`Bulk update failed: ${err.message}`);
+    }
+  };
+
+  const handleActivateUser = () => bulkUpdateStatus(true);
+
+  // Deactivate opens a confirmation modal first
+  const handleDeactivateUser = () => {
+    if (selectedRows.length === 0) return;
+    setIsDropdownOpen(false);
+    setShowDeactivateConfirm(true);
+  };
+
+  const confirmDeactivate = async () => {
+    setIsDeactivating(true);
+    await bulkUpdateStatus(false);
+    setIsDeactivating(false);
+    setShowDeactivateConfirm(false);
+  };
+
+  const handleAddPrivilege = () => toast.info("Add Privilege clicked!");
+
+  const handleDelete = () => {
+    if (selectedRows.length === 0) {
+      toast.error("Please select at least one employee to delete.");
+      return;
+    }
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    try {
+      setIsDeleting(true);
+      const token = localStorage.getItem("authToken");
+
+      const response = await fetch(`${API_BASE_URL}/staff/bulk-delete`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          user_uuids: selectedRows,
+          reason: deleteReason || "Deleted by admin",
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || "Failed to delete employees");
+      }
+
+      toast.success("Selected employees deleted successfully!");
+      setSelectedRows([]);
+      setShowDeleteConfirm(false);
+      setDeleteReason("");
+      fetchEmployees(filters); // keep active filters applied
+    } catch (error) {
+      console.error("Delete failed:", error);
+      toast.error(`Delete failed: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const renderEmployeeCard = (emp) => {
+    const uniqueId = emp.uuid || emp.id;
+    return (
+      <div
+        key={uniqueId}
+        onClick={() => !isDeletedTab && navigate(`/details/${emp.id}`)}
+        className={`bg-white rounded-2xl flex flex-col justify-between h-full transition p-3.5 ${
+          isDeletedTab
+            ? "border border-red-100 shadow-sm"
+            : "hover:shadow-md cursor-pointer"
+        }`}
+      >
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex items-center space-x-4">
+            <img
+              src={emp.image || avatar}
+              alt={emp.first_name}
+              className={`w-14 h-14 rounded-full object-cover ${isDeletedTab ? "grayscale-[30%]" : ""}`}
+            />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-medium ${
+                isDeletedTab
+                  ? "bg-red-50 text-red-600 border border-red-200"
+                  : emp.is_active === true || emp.is_active === "true"
+                    ? "bg-green-100 text-green-700"
+                    : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              {isDeletedTab
+                ? "Deleted"
+                : emp.is_active === true || emp.is_active === "true"
+                  ? "Active"
+                  : "Inactive"}
+            </span>
+            {!isDeletedTab && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/details/${emp.id}`);
+                }}
+                className="p-2 rounded-full hover:bg-gray-100"
+              >
+                <FiMoreHorizontal className="w-5 h-5 text-gray-500" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-[12px] font-medium text-gray-800">
+            {emp.first_name} {emp.last_name}
+          </h3>
+          <p className="text-[10px] text-gray-500">
+            {emp.designation || "N/A"}
+          </p>
+        </div>
+
+        <div className="flex flex-col text-gray-600 bg-gray-50 p-2 rounded-lg mt-2">
+          <div className="flex justify-between">
+            <span className="text-[10px] text-gray-700">Department</span>
+            <span className="text-[10px] text-gray-700">
+              {isDeletedTab ? "Date of Deletion" : "Date of Joining"}
+            </span>
+          </div>
+
+          <div className="flex justify-between mt-0.5">
+            <span className="text-[12px] text-black">
+              {emp.department || "N/A"}
+            </span>
+            <span className="text-[12px] text-black font-medium">
+              {isDeletedTab
+                ? formatDate(emp.deleted_at)
+                : formatDate(emp.date_of_join)}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2 text-[12px] text-gray-800 mt-1.5 border-t border-gray-100 pt-1">
+            <Icon icon="solar:phone-linear" className="text-gray-500 w-4 h-4" />
+            <span>{emp.ph_no || "N/A"}</span>
+          </div>
+
+          <div className="flex items-center space-x-2 text-[12px] text-gray-800">
+            <Icon icon="mage:email" className="text-gray-500 w-4 h-4" />
+            <span className="truncate max-w-[22ch]">{emp.email}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const tableColumns = [
+    {
+      key: "select",
+      label: (
+        <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-gray-300 text-black cursor-pointer disabled:opacity-40"
+          onChange={handleSelectAll}
+          checked={
+            filteredData.length > 0 &&
+            selectedRows.length === filteredData.length
+          }
+          disabled={isDeletedTab || filteredData.length === 0}
+        />
+      ),
+      render: (_, row) => {
+        const rowId = row.uuid || row.id;
+        return (
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-gray-300 text-black cursor-pointer disabled:opacity-40"
+            checked={selectedRows.includes(rowId)}
+            onChange={(e) => handleSelectRow(e, rowId)}
+            disabled={isDeletedTab}
+          />
+        );
+      },
+    },
+    {
+      key: "name",
+      label: "Name",
+      render: (_, row) => {
+        const fullName =
+          `${row.first_name || ""} ${row.last_name || ""}`.trim() || "N/A";
+        return (
+          <div className="flex items-center gap-2" title={fullName}>
+            <img
+              src={row.image || avatar}
+              alt={row.first_name || "avatar"}
+              className="w-6 h-6 rounded-full object-cover"
+            />
+            <span className="truncate max-w-[15ch]">{fullName}</span>
+          </div>
+        );
+      },
+    },
+    {
+      key: "designation",
+      label: "Designation",
+      render: (_, row) => {
+        const designation = row.designation || "N/A";
+        return (
+          <div
+            className="truncate max-w-[12ch] text-center mx-auto"
+            title={designation}
+          >
+            {designation}
+          </div>
+        );
+      },
+    },
+    {
+      key: "date_context",
+      label: isDeletedTab ? "Date of Deletion" : "Date of Joining",
+      render: (_, row) =>
+        isDeletedTab
+          ? formatDate(row.deleted_at)
+          : row.date_of_join
+            ? formatDate(row.date_of_join)
+            : "N/A",
+    },
+    {
+      key: "department",
+      label: "Department",
+      render: (_, row) => {
+        const department = row.department || "N/A";
+        return (
+          <div
+            className="truncate max-w-[16ch] text-center mx-auto"
+            title={department}
+          >
+            {department}
+          </div>
+        );
+      },
+    },
+    {
+      key: "branch",
+      label: "Branch",
+      render: (_, row) => {
+        const branch = row.branch || "HeadOffice";
+        return (
+          <div
+            className="truncate max-w-[16ch] text-center mx-auto"
+            title={branch}
+          >
+            {branch}
+          </div>
+        );
+      },
+    },
+    {
+      key: "ph_no",
+      label: "Mobile",
+      render: (_, row) => row.ph_no || "N/A",
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (_, row) => (
+        <span
+          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            isDeletedTab
+              ? "bg-red-100 text-red-800"
+              : row.is_active === false || row.is_active === "false"
+                ? "bg-gray-100 text-gray-800"
+                : "bg-green-100 text-green-800"
+          }`}
+        >
+          {isDeletedTab
+            ? "Deleted"
+            : row.is_active === false || row.is_active === "false"
+              ? "Inactive"
+              : "Active"}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (_, row) =>
+        !isDeletedTab ? (
+          <button
+            type="button"
+            onClick={() => navigate(`/details/${row.id}`)}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <MoreVertical size={16} />
+          </button>
+        ) : null,
+    },
+  ];
+
+  return (
+    <DashboardLayout>
+      <div className="h-full flex flex-col">
+        <div className="flex-1 overflow-y-auto px-4 flex flex-col gap-6">
+          {/* Integrated Global Shared Header */}
+          <HeaderGlobal userName="Admin" />
+
+          {/* Page Subtitle Context Title */}
+          <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+            <h1 className="text-xl font-medium text-gray-800">
+              Manage Employees
+            </h1>
+          </div>
+
+          {/* Navigation Tabs */}
+          <section className="bg-white w-full mb-2">
+            <div className="border-b flex flex-wrap gap-4 px-0 pt-2 text-sm text-gray-600">
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setTab(t.key)}
+                  className={`pb-2 whitespace-nowrap transition-colors ${
+                    tab === t.key
+                      ? "border-b-2 border-black font-semibold text-black"
+                      : "text-gray-500 hover:text-gray-800"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* Action Control Blocks */}
+          <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+            <span className="text-gray-700 font-medium text-[14px]">
+              {loading
+                ? "Loading..."
+                : `${filteredData.length} Total ${isDeletedTab ? "Deleted Record(s)" : "Employees"}`}
+            </span>
+
+            <div className="flex items-center flex-wrap gap-3">
+              {/* Filters (not applied to the Deleted tab) */}
+              {!isDeletedTab && (
+                <>
+                  <FilterSelect
+                    value={filters.branch_id}
+                    onChange={handleFilterChange("branch_id")}
+                    placeholder="All Branches"
+                    options={branches}
+                    getLabel={(b) => b.name}
+                  />
+                  <FilterSelect
+                    value={filters.department_id}
+                    onChange={handleFilterChange("department_id")}
+                    placeholder="All Departments"
+                    options={departments}
+                    getLabel={(d) => d.name}
+                  />
+                  <FilterSelect
+                    value={filters.designation_id}
+                    onChange={handleFilterChange("designation_id")}
+                    placeholder="All Designations"
+                    options={designations}
+                    getLabel={(d) => d.name}
+                  />
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      onClick={() => setFilters(EMPTY_FILTERS)}
+                      className="text-[12px] text-black hover:underline"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                </>
+              )}
+
+              {/* Operations Dropdown Panel */}
+              {view === "table" && !isDeletedTab && (
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedRows.length === 0) {
+                        setIsDropdownOpen(false);
+                        toast.error("Please select employee");
+                        return;
+                      }
+                      setIsDropdownOpen(!isDropdownOpen);
+                    }}
+                    className="flex items-center bg-gray-800 hover:bg-gray-900 text-white px-3 sm:px-4 py-2 rounded-lg text-[12px]"
+                  >
+                    Update Status
+                    <ChevronDown size={16} className="ml-1" />
+                  </button>
+
+                  {isDropdownOpen && selectedRows.length > 0 && (
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50">
+                      <div className="py-1">
+                        <button
+                          type="button"
+                          onClick={handleAddPrivilege}
+                          className="w-full text-left px-4 py-2 text-[12px] text-gray-700 hover:bg-gray-100 flex items-center"
+                        >
+                          <Shield size={16} className="mr-2 text-gray-600" />{" "}
+                          Add Privilege
+                        </button>
+                        {/* Inactive tab (and All): Activate */}
+                        {(tab === "inactive" || tab === "all") && (
+                          <button
+                            type="button"
+                            onClick={handleActivateUser}
+                            className="w-full text-left px-4 py-2 text-[12px] text-gray-700 hover:bg-gray-100 flex items-center"
+                          >
+                            <UserCheck
+                              size={16}
+                              className="mr-2 text-gray-600"
+                            />{" "}
+                            Activate User
+                          </button>
+                        )}
+                        {/* Active tab (and All): Deactivate */}
+                        {(tab === "active" || tab === "all") && (
+                          <button
+                            type="button"
+                            onClick={handleDeactivateUser}
+                            className="w-full text-left px-4 py-2 text-[12px] text-gray-700 hover:bg-gray-100 flex items-center"
+                          >
+                            <UserX size={16} className="mr-2 text-gray-600" />{" "}
+                            Deactivate User
+                          </button>
+                        )}
+
+                        {/* Delete only on the All tab */}
+                        {tab === "all" && (
+                          <>
+                            <hr className="my-1 border-gray-200" />
+                            <button
+                              type="button"
+                              onClick={handleDelete}
+                              className="w-full text-left px-4 py-2 text-[12px] text-red-600 hover:bg-red-50 flex items-center"
+                            >
+                              <Trash2 size={16} className="mr-2 text-red-600" />{" "}
+                              Delete User
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* View Layout Toggles */}
+              <div className="flex items-center bg-white rounded-lg border border-gray-200 shadow-sm p-1">
+                <button
+                  type="button"
+                  className={`px-3 sm:px-4 py-2 rounded-lg text-[12px] font-medium flex items-center ${
+                    view === "table"
+                      ? "bg-gray-100 text-gray-800 shadow-sm"
+                      : "text-gray-600 hover:text-gray-800"
+                  }`}
+                  onClick={() => setView("table")}
+                  title="Table view"
+                >
+                  <Icon icon="mynaui:table" className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  className={`px-3 sm:px-4 py-2 rounded-lg text-[12px] font-medium flex items-center ${
+                    view === "card"
+                      ? "bg-gray-100 text-gray-800 shadow-sm"
+                      : "text-gray-600 hover:text-gray-800"
+                  }`}
+                  onClick={() => setView("card")}
+                  title="Card view"
+                >
+                  <Icon icon="si:grid-fill" className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Filtering Search Bar */}
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder="Search"
+                  className="border border-gray-300 rounded-lg pl-8 pr-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-black"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <FiSearch className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              </div>
+            </div>
+          </div>
+
+          {/* Core Dataset Rendering Area */}
+          {view === "card" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {loading ? (
+                <div className="col-span-full text-center text-gray-500 py-10">
+                  Loading records...
+                </div>
+              ) : filteredData.length > 0 ? (
+                filteredData.map(renderEmployeeCard)
+              ) : (
+                <div className="col-span-full text-center text-gray-500 py-10">
+                  No records to display.
+                </div>
+              )}
+            </div>
+          ) : (
+            <UniversalTable
+              columns={tableColumns}
+              data={filteredData}
+              rowsPerPage={6}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-[400px] p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">
+              Confirm Delete
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to permanently delete{" "}
+              <span className="font-medium text-gray-900">
+                {selectedRows.length} employee(s)
+              </span>
+              ? This action cannot be undone.
+            </p>
+
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Reason for deletion (optional)
+            </label>
+            <textarea
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              rows={3}
+              className="w-full border border-gray-300 rounded-md p-2 text-sm mb-4 focus:outline-none focus:ring-1 focus:ring-red-500"
+              placeholder="Enter reason..."
+            ></textarea>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmBulkDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700"
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deactivate Confirmation Modal */}
+      <DeactivateConfirmationModal
+        isOpen={showDeactivateConfirm}
+        onClose={() => setShowDeactivateConfirm(false)}
+        onConfirm={confirmDeactivate}
+        isLoading={isDeactivating}
+      />
+    </DashboardLayout>
+  );
+}
+
+export default ManageEmployees;

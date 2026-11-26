@@ -1,0 +1,293 @@
+import React, { useEffect, useRef, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, Bell, X } from "lucide-react";
+import { Icon } from "@iconify/react";
+import DashboardLayout from "../ui/pagelayout";
+import HeaderGlobal from "../ui/headerglobal";
+import avatar from "../assets/img/avatar.svg";
+import { toast } from "react-toastify"; // uses the global <ToastContainer /> from App.jsx (DO NOT add a container here)
+
+// Zustand Store
+import useEmployeeStore from "../store/employeeStore";
+
+// Tabs
+import PersonalInfoTab from "../components/profiledetailstabs/personal_info_tab.jsx";
+import AttachmentsTab from "../components/profiledetailstabs/attachment_tab.jsx";
+import ActivityTab from "../components/profiledetailstabs/activity_tab.jsx";
+import SettingsTab from "../components/profiledetailstabs/settings_tab.jsx";
+import ManageShiftTab from "../components/profiledetailstabs/manageshift.jsx";
+
+import axiosInstance from "../service/axiosinstance.js";
+
+// Exact message from the backend; also appends the `data` detail string if present
+// e.g. { status_code: 200, message: "Successfully deleted user", data: null }
+const getBackendMessage = (source, fallback = "") => {
+  // `source` can be an axios response or an axios error
+  const data = source?.response?.data ?? source?.data;
+  if (typeof data === "string" && data.trim()) return data;
+  const main = data?.message || data?.error || data?.detail || "";
+  const detail =
+    typeof data?.data === "string" && data.data.trim() ? data.data.trim() : "";
+  if (main && detail && !main.includes(detail)) return `${main}: ${detail}`;
+  return main || detail || fallback;
+};
+
+export default function EmployeeProfile() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  const [activeTab, setActiveTab] = useState("Personal Info");
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+
+  // Guards against double clicks while a request is running (no visual change)
+  const deletingRef = useRef(false);
+  const redirectTimer = useRef(null);
+
+  const { selectedEmployee, fetchEmployeeById } = useEmployeeStore();
+
+  useEffect(() => {
+    if (id) fetchEmployeeById(id);
+  }, [id, fetchEmployeeById]);
+
+  // Clear the pending redirect if the page unmounts first
+  useEffect(() => () => clearTimeout(redirectTimer.current), []);
+
+  const isActive =
+    selectedEmployee?.is_active === true ||
+    selectedEmployee?.is_active === "true";
+
+  // Centralized Toast Handlers (react-toastify)
+  const handleSuccess = (msg) => toast.success(msg);
+  const handleError = (err) => toast.error(err);
+
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setDeleteReason("");
+  };
+
+  const toggleStatus = async () => {
+    if (!selectedEmployee?.uuid || statusUpdating) return;
+    try {
+      setStatusUpdating(true);
+      const newStatus = !isActive;
+      await axiosInstance.put(
+        `/staff/toggle-activate/${selectedEmployee.uuid}?activate=${newStatus}`,
+      );
+      handleSuccess(
+        `Employee ${newStatus ? "activated" : "deactivated"} successfully!`,
+      );
+      await fetchEmployeeById(selectedEmployee.id);
+    } catch (err) {
+      handleError(getBackendMessage(err, "Status update failed"));
+      console.error(err);
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedEmployee?.uuid || deletingRef.current) return;
+    if (!deleteReason.trim()) {
+      handleError("Please provide a reason for deletion");
+      return;
+    }
+
+    deletingRef.current = true;
+    try {
+      const response = await axiosInstance.delete(
+        `/staff/delete/${selectedEmployee.uuid}`,
+        {
+          data: { reason: deleteReason.trim() },
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      // Shows the backend message, e.g. "Successfully deleted user"
+      handleSuccess(
+        getBackendMessage(response, "Employee deleted successfully"),
+      );
+      closeDeleteModal();
+      redirectTimer.current = setTimeout(
+        () => navigate("/manageemployee"),
+        1500,
+      );
+    } catch (err) {
+      handleError(getBackendMessage(err, "Failed to delete employee"));
+      console.error(err);
+    } finally {
+      deletingRef.current = false;
+    }
+  };
+
+  const sidebarTabs = [
+    { name: "Personal Info", icon: "proicons:person" },
+    { name: "Activities", icon: "solar:graph-outline" },
+    { name: "Attachments", icon: "subway:pin" },
+    { name: "Manage Shift", icon: "ic:twotone-manage-history" },
+    { name: "Notifications", icon: "hugeicons:notification-02" },
+    { name: "Settings", icon: "solar:settings-linear" },
+  ];
+
+  return (
+    <DashboardLayout userName={selectedEmployee?.first_name || "Employee"}>
+      <div className="bg-[#f9fafb] min-h-screen">
+        {/* Global header */}
+        <div className="mb-4">
+          <HeaderGlobal userName="Admin" />
+        </div>
+
+        <div className="flex gap-3 p-3">
+          <aside className="sticky top-4 h-fit w-60 bg-white border rounded-2xl p-6 flex flex-col items-center shadow-sm">
+            <button
+              onClick={toggleStatus}
+              disabled={statusUpdating}
+              className={`absolute top-2 right-2 px-2 py-1 text-[10px] rounded flex items-center gap-1 cursor-pointer transition-opacity ${
+                statusUpdating ? "opacity-50 cursor-not-allowed" : ""
+              } ${
+                isActive
+                  ? "bg-green-100 text-green-600 hover:bg-green-200"
+                  : "bg-red-100 text-red-500 hover:bg-red-200"
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  isActive ? "bg-green-500" : "bg-red-500"
+                }`}
+              ></span>
+              {isActive ? "Active" : "Deactivated"}
+            </button>
+
+            <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border-2 border-gray-50 mt-4 shadow-sm">
+              <img
+                src={selectedEmployee?.image || avatar}
+                className="w-full h-full object-cover"
+                alt="Profile"
+              />
+            </div>
+
+            <h2 className="text-sm font-medium text-gray-800 text-center">
+              {selectedEmployee?.first_name} {selectedEmployee?.last_name}
+            </h2>
+            <p className="text-[12px] text-gray-400 mb-6">
+              {selectedEmployee?.email}
+            </p>
+
+            <div className="w-full space-y-1">
+              {sidebarTabs.map((tab) => (
+                <button
+                  key={tab.name}
+                  onClick={() => setActiveTab(tab.name)}
+                  className={`flex items-center gap-3 w-full text-left px-4 py-2.5 rounded-xl transition-all text-xs ${
+                    activeTab === tab.name
+                      ? "bg-black text-white shadow-md"
+                      : "text-gray-500 hover:bg-gray-50"
+                  }`}
+                >
+                  <Icon
+                    icon={tab.icon}
+                    width="18"
+                    className={
+                      activeTab === tab.name ? "text-white" : "text-gray-400"
+                    }
+                  />
+                  <span>{tab.name}</span>
+                </button>
+              ))}
+
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all text-xs mt-4"
+              >
+                <Icon icon="fluent:delete-20-regular" width="18" />
+                Delete User
+              </button>
+            </div>
+          </aside>
+
+          <main className="flex-1 overflow-y-auto max-h-[85vh] pr-2 scrollbar-none">
+            {activeTab === "Activities" ? (
+              <ActivityTab
+                employee={selectedEmployee}
+                onSuccess={handleSuccess}
+                onError={handleError}
+              />
+            ) : activeTab === "Personal Info" ? (
+              <PersonalInfoTab
+                employee={selectedEmployee}
+                onSuccess={handleSuccess}
+                onError={handleError}
+              />
+            ) : activeTab === "Attachments" ? (
+              <AttachmentsTab
+                attachments={selectedEmployee?.attachments || []}
+                onSuccess={handleSuccess}
+                onError={handleError}
+              />
+            ) : activeTab === "Settings" ? (
+              <SettingsTab
+                employee={selectedEmployee}
+                employeeUUID={selectedEmployee?.uuid}
+                onSuccess={handleSuccess}
+                onError={handleError}
+              />
+            ) : activeTab === "Manage Shift" ? (
+              <ManageShiftTab
+                employeeUUID={selectedEmployee?.uuid}
+                onSuccess={handleSuccess}
+                onError={handleError}
+              />
+            ) : (
+              <div className="p-10 bg-white rounded-2xl border border-dashed border-gray-200 text-center text-gray-400 text-sm">
+                {activeTab} content coming soon...
+              </div>
+            )}
+          </main>
+        </div>
+
+        {/* Delete Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-6 w-[400px] shadow-xl relative animate-in fade-in zoom-in duration-200">
+              <button
+                onClick={closeDeleteModal}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+              <h2 className="text-lg font-medium text-gray-800 mb-2">
+                Confirm Deletion
+              </h2>
+              <p className="text-xs text-gray-500 mb-4">
+                Provide a reason for deleting{" "}
+                <b>{selectedEmployee?.first_name}</b>.
+              </p>
+              <textarea
+                className="w-full border border-gray-200 rounded-xl p-3 text-xs mb-4 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+                rows={3}
+                placeholder="Reason for deletion..."
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+              ></textarea>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={closeDeleteModal}
+                  className="px-5 py-2 text-xs text-gray-500 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="px-5 py-2 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 shadow-lg shadow-red-200 transition-all"
+                >
+                  Confirm Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+}

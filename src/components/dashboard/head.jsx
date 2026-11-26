@@ -1,0 +1,361 @@
+import React, { useEffect, useState } from "react";
+import { Icon } from "@iconify/react";
+import dashboardService from "../../service/dashboardService";
+import AnnouncementModal from "./announcement";
+import AdminLeaveModal from "../../ui/addleavemodal";
+import HeaderGolbal from "../../ui/headerglobal";
+import HappinessModal from "../../ui/happiness";
+
+function DashboardHead({ userName, activeTab, setActiveTab }) {
+  const [dashboardData, setDashboardData] = useState({
+    total_staff: { count: 0, employees: [] },
+    present_today: { count: 0, employees: [] },
+    on_leave: { count: 0, employees: [] },
+    absent_today: { count: 0, employees: [] },
+    happiness_rate: "0.00%",
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Modal & Sidebar State
+  const [isAnnounceModalOpen, setIsAnnounceModalOpen] = useState(false);
+  const [isAdminLeaveModalOpen, setIsAdminLeaveModalOpen] = useState(false);
+  const [isHappinessModalOpen, setIsHappinessModalOpen] = useState(false);
+  const [happinessData, setHappinessData] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+
+  // Hover Popover State for Happiness Card
+  const [isHappinessHovered, setIsHappinessHovered] = useState(false);
+  const [hoverHappinessData, setHoverHappinessData] = useState(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const response = await dashboardService.getDashboardData();
+        setDashboardData(response || {});
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err);
+        setError("Failed to load dashboard data");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);
+
+  // Fetch data specifically for hover card preview
+  const handleHappinessMouseEnter = async () => {
+    setIsHappinessHovered(true);
+    try {
+      const response = await dashboardService.fetchHappinessRating();
+      setHoverHappinessData(response?.data || null);
+    } catch (err) {
+      console.error("Error fetching hover happiness data:", err);
+    }
+  };
+
+  const handleHappinessMouseLeave = () => {
+    setIsHappinessHovered(false);
+  };
+
+  // Fetch data when card is clicked to open the modal
+  const handleHappinessClick = async () => {
+    try {
+      const response = await dashboardService.fetchHappinessRating();
+      setHappinessData(response?.data || null);
+      setIsHappinessModalOpen(true);
+    } catch (err) {
+      console.error("Error fetching happiness rating for modal:", err);
+    }
+  };
+
+  if (loading)
+    return (
+      <div className="flex justify-center items-center h-40 text-gray-500 w-full font-poppins text-xs">
+        Loading dashboard data...
+      </div>
+    );
+
+  if (error)
+    return (
+      <div className="flex justify-center items-center h-40 w-full text-red-500 font-poppins text-xs">
+        {error}
+      </div>
+    );
+
+  const GlowButton = ({ children, onClick }) => (
+    <button
+      className="chat-btn relative overflow-visible rounded-lg px-5 py-3 text-xs font-poppins font-light bg-black text-white flex items-center gap-2"
+      onClick={onClick}
+    >
+      {children}
+      <span className="glow" />
+      <style>{`
+        .chat-btn { position: relative; overflow: visible; cursor: pointer; transition: transform 180ms cubic-bezier(.22, .61, .36, 1); }
+        .chat-btn::before { content: ""; position: absolute; inset: 0; padding: 0px 0px 3px 0px; border-radius: 8px; background: linear-gradient(90deg, #6d7cff, #a855f7, #ec4899, #6d7cff); background-size: 300% 100%; animation: slide 3s linear infinite; transition: padding 180ms cubic-bezier(.22, .61, .36, 1); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+        .chat-btn:hover::before { padding: 1px 1px 5px 1px; }
+        .glow { position: absolute; left: 12%; right: 12%; bottom: -8px; height: 10px; border-radius: 9999px; background: linear-gradient(90deg, #6d7cff, #a855f7, #ec4899, #6d7cff); background-size: 300% 100%; animation: slide 3s linear infinite; filter: blur(16px); opacity: 0.55; transition: opacity 180ms ease; }
+        @keyframes slide { from { background-position: 0% 0; } to { background-position: 300% 0; } }
+      `}</style>
+    </button>
+  );
+
+  const kpiCards = [
+    {
+      id: "total_staff",
+      label: "Total Employees",
+      value: dashboardData.total_staff?.count,
+      bg: "#EBFDEF",
+      icon: "famicons:people-outline",
+      isClickable: true,
+    },
+    {
+      id: "present_today",
+      label: "Total Present",
+      value: dashboardData.present_today?.count,
+      bg: "#E8EFF9",
+      icon: "mdi:account-tick-outline",
+      isClickable: true,
+    },
+    {
+      id: "on_leave",
+      label: "On Leave",
+      value: dashboardData.on_leave?.count,
+      bg: "#FFEFE7",
+      icon: "fluent-mdl2:leave-user",
+      isClickable: true,
+    },
+    {
+      id: "happiness",
+      label: "Happiness Rate",
+      value: dashboardData.happiness_rate,
+      bg: "#FFFBDB",
+      icon: "cil:smile",
+      isClickable: true,
+    },
+    {
+      id: "absent_today",
+      label: "Total Absents",
+      value: dashboardData.absent_today?.count,
+      bg: "#FFDADA",
+      icon: "mdi:account-remove-outline",
+      isClickable: true,
+    },
+  ];
+
+  return (
+    <div className="w-full bg-white font-poppins relative">
+      <HeaderGolbal userName={userName} />
+
+      <div className="w-full sm:px-6 mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <p className="text-lg sm:text-2xl font-medium">
+            {userName} Admin’s Dashboard
+          </p>
+          <p className="text-[10px] sm:text-[13px] text-gray-400 font-light">
+            Track and manage all details here
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <GlowButton onClick={() => setIsAnnounceModalOpen(true)}>
+            <div className="flex items-center gap-2">
+              <Icon icon="mdi:bullhorn" className="w-4 h-4" /> Announce
+            </div>
+          </GlowButton>
+          <button
+            onClick={() => setIsAdminLeaveModalOpen(true)}
+            className="px-3 sm:px-4 py-3 text-xs rounded-lg border bg-black text-white transition-all hover:bg-gray-800"
+          >
+            + Add Leave
+          </button>
+        </div>
+      </div>
+
+      <section className="grid grid-cols-2 sm:grid-cols-5 gap-4 w-full px-4 sm:px-6 mt-4">
+        {kpiCards.map((card, idx) => {
+          const isHappiness = card.id === "happiness";
+
+          return (
+            <div
+              key={idx}
+              onClick={() => {
+                if (isHappiness) {
+                  handleHappinessClick();
+                } else if (card.isClickable) {
+                  setSelectedCategory(card);
+                }
+              }}
+              onMouseEnter={isHappiness ? handleHappinessMouseEnter : undefined}
+              onMouseLeave={isHappiness ? handleHappinessMouseLeave : undefined}
+              className={`shadow-sm rounded-lg p-3 flex items-center gap-3 transition-all relative ${
+                card.isClickable
+                  ? "cursor-pointer hover:shadow-md border border-transparent hover:border-gray-200"
+                  : "cursor-default"
+              }`}
+              style={{ backgroundColor: card.bg }}
+            >
+              <div className="flex items-center justify-center min-w-10 h-10 rounded-full bg-black text-white">
+                <Icon icon={card.icon} className="w-5 h-5" />
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-gray-500 text-[10px] sm:text-xs truncate uppercase font-semibold">
+                  {card.label}
+                </p>
+                <h2 className="text-lg sm:text-xl font-medium text-gray-800">
+                  {card.value ?? 0}
+                </h2>
+              </div>
+
+              {/* Hover Preview Card / Tooltip for Happiness Feedback */}
+              {isHappiness && isHappinessHovered && (
+                <div className="absolute top-full left-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-100 p-3 z-50 text-xs">
+                  <p className="font-semibold text-gray-800 mb-2 border-b pb-1">
+                    Today's Feedback Preview
+                  </p>
+                  {hoverHappinessData?.submitted_today &&
+                  hoverHappinessData?.data?.length > 0 ? (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {hoverHappinessData.data.map((item, i) => (
+                        <div key={i} className="bg-gray-50 p-2 rounded border">
+                          <p className="font-bold text-gray-700">
+                            Rating: {item.rating}/5
+                          </p>
+                          <p className="text-gray-600 truncate">
+                            {item.feedback}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-400 py-2 text-center">
+                      No feedback submitted today.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </section>
+
+      {/* Sidebar for regular employee lists */}
+      <div
+        className={`fixed top-0 right-0 h-full w-full sm:w-[450px] bg-white shadow-[-10px_0_30px_rgba(0,0,0,0.1)] z-50 transform transition-transform duration-300 ease-in-out ${
+          selectedCategory ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        {selectedCategory && (
+          <div className="flex flex-col h-full">
+            <div className="p-6 border-b flex justify-between items-center bg-white">
+              <div>
+                <h3 className="font-medium text-xl text-gray-900">
+                  {selectedCategory.label}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Viewing{" "}
+                  {dashboardData[selectedCategory.id]?.employees?.length || 0}{" "}
+                  employees
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <Icon
+                  icon="heroicons:x-mark-20-solid"
+                  className="w-6 h-6 text-gray-400"
+                />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
+              {dashboardData[selectedCategory.id]?.employees?.length > 0 ? (
+                <div className="grid gap-3">
+                  {dashboardData[selectedCategory.id].employees.map(
+                    (emp, i) => (
+                      <div
+                        key={i}
+                        className="bg-white p-4 rounded-xl border border-gray-100 flex items-center gap-4 shadow-sm"
+                      >
+                        <div className="w-11 h-11 rounded-full bg-black flex items-center justify-center text-white text-sm">
+                          {emp.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm text-gray-900">{emp.name}</p>
+                          <p className="text-[11px] text-gray-500 font-medium">
+                            {emp.designation || "No Designation"}
+                          </p>
+                        </div>
+                      </div>
+                    ),
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-gray-400 opacity-60">
+                  <Icon
+                    icon="solar:user-block-linear"
+                    className="w-16 h-16 mb-2"
+                  />
+                  <p className="text-sm font-medium">
+                    No employee records found
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {selectedCategory && (
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-[2px] z-40"
+          onClick={() => setSelectedCategory(null)}
+        />
+      )}
+
+      <section className="bg-white mt-4 sm:mt-6 w-full px-4 sm:px-6">
+        <div className="border-b flex flex-wrap gap-4 sm:gap-6 pt-4 text-sm">
+          {[
+            { label: "Attendance Overview", key: "overview" },
+            { label: "Log Details", key: "logdetails" },
+            { label: "Leave Requests", key: "leaverequests" },
+            { label: "Muster Roll", key: "musterRoll" },
+            { label: "Regularization", key: "regularization" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`pb-2 whitespace-nowrap transition-all ${
+                activeTab === tab.key
+                  ? "border-b-2 border-black font-medium text-black"
+                  : "text-[#AFAFAF]"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <HappinessModal
+        isOpen={isHappinessModalOpen}
+        onClose={() => setIsHappinessModalOpen(false)}
+        data={happinessData}
+      />
+
+      <AnnouncementModal
+        isOpen={isAnnounceModalOpen}
+        onClose={() => setIsAnnounceModalOpen(false)}
+      />
+      <AdminLeaveModal
+        isOpen={isAdminLeaveModalOpen}
+        onClose={() => setIsAdminLeaveModalOpen(false)}
+      />
+    </div>
+  );
+}
+
+export default DashboardHead;

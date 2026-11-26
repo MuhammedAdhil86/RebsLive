@@ -1,0 +1,138 @@
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+
+// Import Guards from our separate file
+import { ProtectedRoute, PublicRoute } from "../components/protectedroute";
+
+// Pages
+import Login from "../page/login";
+import ForgotPasswordUI from "../page/forgetpasssword";
+import OtpUi from "../page/otp";
+import NewPasswordUI from "../page/newpassword";
+import Dashboard from "../page/dashboard";
+import Settings from "../page/settings";
+import LogPage from "../page/testpage";
+import ManageEmployees from "../page/manageemployee";
+import EmployeeProfile from "../page/employeedetails";
+import EmployeeOnboarding from "../page/exployeeonbording";
+import ConsolidatedData from "../components/tables/consoildate";
+import ManageEmployeeShifts from "../page/manageemployeeshift";
+import OrganizationOnboarding from "../page/organizationonboarding";
+import Reports from "../page/resports";
+import JobCreation from "../page/jobcreation";
+import Requests from "../page/requests";
+import EmployeeCalendar from "../page/activitycalander";
+import Payroll from "../page/payroll";
+import Payslip from "../page/payslip";
+import Announcement from "../page/announcement";
+import AssetManager from "../page/assetmanager";
+import Events from "../page/event";
+
+import JobEnquiry from "../page/jobenquiry";
+import manageinsurance from "../page/manageinsurance";
+import InsuranceDetails from "../page/insurancedetails";
+import Timesheet from "../page/timesheet";
+import ExitProcess from "../page/ExitpProcess";
+import Kpi from "../page/Kpi";
+import Chat from "../page/chat";
+import Projects from "../page/Projects";
+import Templates from "../page/Templates";
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* --- Auth / Public Routes (Logged-in users CANNOT access) --- */}
+      <Route path="/" element={<PublicRoute element={Login} />} />
+      <Route
+        path="/forgetpass"
+        element={<PublicRoute element={ForgotPasswordUI} />}
+      />
+      <Route path="/otp" element={<PublicRoute element={OtpUi} />} />
+      <Route
+        path="/newpassword"
+        element={<PublicRoute element={NewPasswordUI} />}
+      />
+      {/* --- Protected Routes (Logged-out users CANNOT access) --- */}
+      <Route
+        path="/dashboard"
+        element={<ProtectedRoute element={Dashboard} />}
+      />
+      <Route path="/projects" element={<ProtectedRoute element={Projects} />} />
+      <Route
+        path="/employeeonboarding"
+        element={<ProtectedRoute element={EmployeeOnboarding} />}
+      />
+      <Route path="/settings" element={<ProtectedRoute element={Settings} />} />
+      <Route
+        path="/manageemployee"
+        element={<ProtectedRoute element={ManageEmployees} />}
+      />
+      <Route
+        path="/details/:id"
+        element={<ProtectedRoute element={EmployeeProfile} />}
+      />
+      <Route
+        path="/insurance"
+        element={<ProtectedRoute element={manageinsurance} />}
+      />
+      <Route path="/chat" element={<ProtectedRoute element={Chat} />} />
+      <Route
+        path="/timesheet"
+        element={<ProtectedRoute element={Timesheet} />}
+      />
+      <Route
+        path="/templates"
+        element={<ProtectedRoute element={Templates} />}
+      />
+      <Route
+        path="/exit-process"
+        element={<ProtectedRoute element={ExitProcess} />}
+      />
+      <Route path="/kpi" element={<ProtectedRoute element={Kpi} />} />
+      <Route
+        path="/insurance-details/:id"
+        element={<ProtectedRoute element={InsuranceDetails} />}
+      />
+      <Route path="/test" element={<ProtectedRoute element={LogPage} />} />
+      <Route path="/insurance-details/:uuid" element={<InsuranceDetails />} />
+      <Route
+        path="/consoildate"
+        element={<ProtectedRoute element={ConsolidatedData} />}
+      />
+      <Route
+        path="/shift"
+        element={<ProtectedRoute element={ManageEmployeeShifts} />}
+      />
+      <Route path="/payslip" element={<ProtectedRoute element={Payslip} />} />
+      <Route
+        path="/onboarding"
+        element={<ProtectedRoute element={OrganizationOnboarding} />}
+      />
+      <Route path="/reports" element={<ProtectedRoute element={Reports} />} />
+      <Route path="/job" element={<ProtectedRoute element={JobCreation} />} />
+      <Route path="/Requests" element={<ProtectedRoute element={Requests} />} />
+      <Route
+        path="/activity"
+        element={<ProtectedRoute element={EmployeeCalendar} />}
+      />
+      <Route path="/payroll" element={<ProtectedRoute element={Payroll} />} />
+      <Route
+        path="/announcements"
+        element={<ProtectedRoute element={Announcement} />}
+      />
+      <Route
+        path="/asset"
+        element={<ProtectedRoute element={AssetManager} />}
+      />
+
+      <Route path="/events" element={<ProtectedRoute element={Events} />} />
+      <Route
+        path="/jobenquiry"
+        element={<ProtectedRoute element={JobEnquiry} />}
+      />
+      {/* Catch-all fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+export default AppRoutes;

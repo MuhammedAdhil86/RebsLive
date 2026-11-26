@@ -1,0 +1,933 @@
+import axiosInstance from "./axiosinstance";
+
+import {
+  getpolicyLookup,
+  updatePolicyStatus,
+  getDifaultleavePolicy, // Retained matching naming convention
+  postCloneLeavePolicy,
+  getDeclarationList,
+  updateSalaryPayrollComponent,
+  updatePayrollSalaryTemplate,
+  getPayrollcomponents,
+  deletePayrollComponent,
+  deleteTemplateAllocation,
+  getPayrollDataAnalyticsList,
+  getptslabs,
+  getTDS,
+  getPayrollConfiguration,
+  getTdsOpeningBalance,
+  postPopulateTdsOpeningBalance,
+  getFinancialYears,
+  getTaxRegimes,
+  putUpsertPT,
+  putUpsertTDS,
+  getReimbursementList,
+  approveOrRejectDeclaration,
+  getTdsDeductionSections,
+  updateReimbursementStatus,
+  postLeaveBulkAllocation,
+  deletePayrollTemplate,
+  postBulkAllocatePayroll,
+  deleteLeavePolicy as deleteLeavePolicyUrl, // Resolved naming clash
+  updatePayrollAnalytics,
+  // Safe imports of newly centralized keys
+  getSalaryTemplates,
+  getEpfStatus,
+  postEnableEpf,
+  postDisableEpf,
+  getEsiStatus,
+  postEnableEsi,
+  postDisableEsi,
+  getPtStatus,
+  upsertPayrollConfiguration,
+  getLwfStatus,
+  getLwfRulesByState,
+  postEnableLwf,
+  postDisableLwf,
+  putUpsertLwf,
+  getLwfStateRules,
+  postCreateSalaryComponent,
+  getLeaveRequestConfig as getLeaveRequestConfigUrl,
+  putLeaveRequestConfig,
+  deleteLeaveRequestConfig as deleteLeaveRequestConfigUrl,
+  getEmploymentTypeLeaveConfig,
+  putEmploymentTypeLeaveConfig,
+  deleteEmploymentTypeLeaveConfig as deleteEmploymentTypeLeaveConfigUrl,
+  getPayslipDownloadUrl,
+} from "../api/api";
+
+/* ---------------- PAYLOAD BUILDERS ---------------- */
+
+// Builds the request body for the payroll configuration upsert.
+// The start date is only sent for fixed_* period types.
+const buildConfigPayload = (values) => {
+  const payload = { salary_period_type: values.salary_period_type };
+
+  if (values.salary_period_type?.startsWith("fixed_")) {
+    payload.salary_period_start_date = values.salary_period_start_date;
+  }
+
+  return payload;
+};
+
+const payrollService = {
+  // ---------------- POLICY LOOKUPS ----------------
+  getPolicyLookupData: async (filterType, value = "lookup") => {
+    try {
+      const res = await axiosInstance.get(
+        `${getpolicyLookup}?${filterType}=${value}`,
+      );
+      return res.data || [];
+    } catch (err) {
+      console.error(
+        `Error in getPolicyLookupData (${filterType}):`,
+        err.response || err,
+      );
+      throw err;
+    }
+  },
+
+  // ---------------- SALARY TEMPLATES ----------------
+  getSalaryTemplates: async () => {
+    try {
+      const res = await axiosInstance.get(getSalaryTemplates);
+      console.log("Salary Templates API Response:", res);
+      console.log("Salary Templates Items:", res.data?.data?.items);
+      return res.data?.data?.items || [];
+    } catch (err) {
+      console.error("Error in getSalaryTemplates:", err.response || err);
+      throw err;
+    }
+  },
+
+  getPayrollComponents: async () => {
+    try {
+      const res = await axiosInstance.get(getPayrollcomponents);
+      return res.data?.data || res.data || [];
+    } catch (err) {
+      console.error("Error in getPayrollComponents:", err.response || err);
+      throw err;
+    }
+  },
+
+  // ---------------- EPF ----------------
+  getEPF: async () => {
+    try {
+      const res = await axiosInstance.get(getEpfStatus);
+      return res.data?.data || {};
+    } catch (err) {
+      console.error("Error in getEPF:", err.response || err);
+      throw err;
+    }
+  },
+
+  enableEPF: async () => {
+    try {
+      const res = await axiosInstance.post(postEnableEpf, { enabled: true });
+      return res.data;
+    } catch (err) {
+      console.error("Error in enableEPF:", err.response || err);
+      throw err;
+    }
+  },
+
+  disableEPF: async () => {
+    try {
+      const res = await axiosInstance.post(postDisableEpf);
+      return res.data;
+    } catch (err) {
+      console.error("Error in disableEPF:", err.response || err);
+      throw err;
+    }
+  },
+
+  // ---------------- ESI ----------------
+  getESI: async () => {
+    try {
+      const res = await axiosInstance.get(getEsiStatus);
+      console.log("ESI FULL RESPONSE 👉", res.data);
+      console.log("ESI DATA OBJECT 👉", res.data?.data);
+      console.log("ESI ROW EXISTS 👉", res.data?.data?.row_exists);
+      console.log("ESI ENABLED 👉", res.data?.data?.enabled);
+      return res.data?.data || {};
+    } catch (err) {
+      console.error("Error in getESI:", err.response || err);
+      throw err;
+    }
+  },
+
+  enableESI: async () => {
+    try {
+      const res = await axiosInstance.post(postEnableEsi, { enabled: true });
+      return res.data;
+    } catch (err) {
+      console.error("Error in enableESI:", err.response || err);
+      throw err;
+    }
+  },
+
+  disableESI: async () => {
+    try {
+      const res = await axiosInstance.post(postDisableEsi);
+      return res.data;
+    } catch (err) {
+      console.error("Error in disableESI:", err.response || err);
+      throw err;
+    }
+  },
+
+  // ---------------- PROFESSIONAL TAX ----------------
+  getPT: async () => {
+    try {
+      const res = await axiosInstance.get(getPtStatus);
+      return res.data?.data || {};
+    } catch (err) {
+      console.error("Error in getPT:", err.response || err);
+      throw err;
+    }
+  },
+
+  // ---------------- LABOUR WELFARE FUND ----------------
+  getLWF: async () => {
+    try {
+      const res = await axiosInstance.get(getLwfStatus);
+      return res.data?.data || {};
+    } catch (err) {
+      console.error("Error in getLWF:", err.response || err);
+      throw err;
+    }
+  },
+
+  // Fetch the active financial year
+  getActiveFinancialYear: async () => {
+    try {
+      const res = await axiosInstance.get(getFinancialYears);
+      // Response shape: { "ok": true, "data": { ... } }
+      return res.data.data;
+    } catch (err) {
+      console.error("Error in getActiveFinancialYear:", err.response || err);
+      throw err;
+    }
+  },
+
+  // getTDS accepts the financialYearId
+  getTDS: async (financialYearId) => {
+    try {
+      // If no ID is provided, throw to prevent a 400 from the backend
+      if (!financialYearId) {
+        throw new Error("financial_year_id is required");
+      }
+
+      // e.g. /api/payroll/tds/tds-settings?financial_year_id=1
+      const url = `${getTDS}?financial_year_id=${financialYearId}`;
+      const res = await axiosInstance.get(url);
+      return res.data?.data || {};
+    } catch (err) {
+      console.error("Error in getTDS:", err.response || err);
+      throw err;
+    }
+  },
+
+  getTaxRegimes: async () => {
+    try {
+      const res = await axiosInstance.get(getTaxRegimes);
+      return res.data?.data || res.data || [];
+    } catch (err) {
+      console.error("Error in getTaxRegimes:", err.response || err);
+      throw err;
+    }
+  },
+
+  /**
+   * @param {string} stateName - Name of the state (e.g., 'west bengal')
+   */
+  getLWFRulesByState: async (stateName) => {
+    if (!stateName)
+      throw new Error("State name is required to fetch LWF rules.");
+
+    try {
+      const sanitizedState = encodeURIComponent(stateName.trim().toLowerCase());
+      const res = await axiosInstance.get(
+        `${getLwfRulesByState}?state=${sanitizedState}`,
+      );
+
+      // If data is an array, return the first object element directly
+      if (
+        res.data?.data &&
+        Array.isArray(res.data.data) &&
+        res.data.data.length > 0
+      ) {
+        return res.data.data[0];
+      }
+
+      // Fallback in case the backend payload structure changes to an object
+      return res.data?.data || res.data || null;
+    } catch (err) {
+      console.error(
+        `Error in getLWFRulesByState for ${stateName}:`,
+        err.response || err,
+      );
+      throw err;
+    }
+  },
+
+  enableLWF: async ({ state, deduction_cycle }) => {
+    if (!state) throw new Error("State is required to enable LWF");
+    if (!deduction_cycle) throw new Error("Deduction cycle is required");
+
+    const res = await axiosInstance.post(postEnableLwf, {
+      enabled: true,
+      state,
+      deduction_cycle,
+    });
+    return res.data;
+  },
+
+  disableLWF: async () => {
+    try {
+      const res = await axiosInstance.post(postDisableLwf);
+      return res.data;
+    } catch (err) {
+      console.error("Error in disableLWF:", err.response || err);
+      throw err;
+    }
+  },
+
+  // ---------------- LABOUR WELFARE FUND (UPSERT) ----------------
+  upsertLWF: async ({ state, deduction_cycle, description }) => {
+    try {
+      if (!state) throw new Error("State is required");
+      if (!deduction_cycle) throw new Error("Deduction cycle is required");
+
+      const res = await axiosInstance.put(putUpsertLwf, {
+        state,
+        deduction_cycle,
+        description,
+      });
+      return res.data;
+    } catch (err) {
+      console.error("Error in upsertLWF:", err.response || err);
+      throw err;
+    }
+  },
+
+  // ---------------- TAX DEDUCTED AT SOURCE (TDS) ----------------
+  upsertTDS: async (payload) => {
+    try {
+      const res = await axiosInstance.put(putUpsertTDS, payload);
+
+      // If the API returns 200 OK but "ok" is false, force an error
+      if (res.data && res.data.ok === false) {
+        throw {
+          success: false,
+          message: res.data?.message || "Failed to update TDS settings",
+          backendError: res.data?.error || null, // e.g. "invalid or non-default tax regime selected"
+          errors: res.data?.errors || null,
+          status: 200,
+        };
+      }
+
+      // If ok is true, proceed as a real success
+      return {
+        success: true,
+        message: res.data?.message || "TDS Settings updated successfully",
+        data: res.data?.data || res.data,
+      };
+    } catch (err) {
+      // Handles standard non-200 errors (400, 404, 500, etc.)
+      console.error(
+        "Error inside upsertTDS execution row:",
+        err.response || err,
+      );
+
+      // If our manual throw from above triggered this, pass it straight through
+      if (err.success === false) throw err;
+
+      const serverError = err.response?.data;
+      throw {
+        success: false,
+        message: serverError?.message || "Failed to update TDS settings",
+        backendError: serverError?.error || null,
+        errors: serverError?.errors || null,
+        status: err.response?.status,
+      };
+    }
+  },
+
+  getDeclarationList: async (queryParams = {}) => {
+    try {
+      // Filters like status or fiscal year can be passed as query parameters
+      const res = await axiosInstance.get(getDeclarationList, {
+        params: queryParams,
+      });
+      console.log("Declaration List Data:", res.data);
+      return res.data;
+    } catch (err) {
+      console.error("Error in getDeclarationList:", err.response || err);
+      throw err;
+    }
+  },
+
+  approveOrRejectDeclaration: async (payload) => {
+    try {
+      const res = await axiosInstance.put(approveOrRejectDeclaration, payload);
+      return res.data;
+    } catch (err) {
+      console.error(
+        "Error in approveOrRejectDeclaration:",
+        err.response || err,
+      );
+      throw err;
+    }
+  },
+
+  getTdsDeductionSections: async () => {
+    try {
+      const res = await axiosInstance.get(getTdsDeductionSections);
+      return res.data;
+    } catch (err) {
+      console.error("Error in getTdsDeductionSections:", err.response || err);
+      throw err;
+    }
+  },
+
+  getLWFStateRules: async () => {
+    try {
+      const res = await axiosInstance.get(getLwfStateRules);
+      // Returns res.data.data, falls back to res.data, otherwise an empty array
+      return res.data?.data || res.data || [];
+    } catch (err) {
+      console.error("Error in getLWFStateRules:", err.response || err);
+      throw err;
+    }
+  },
+
+  getActivePTSlabs: async (stateName) => {
+    if (!stateName)
+      throw new Error("State name parameter is required for lookup.");
+
+    try {
+      // Normalizes spacing and lowercases the state name
+      const sanitizedState = encodeURIComponent(stateName.trim().toLowerCase());
+      const res = await axiosInstance.get(
+        `${getptslabs}?state=${sanitizedState}`,
+      );
+
+      // Flexible unpacking for nested array payloads or fallbacks
+      return res.data?.data || res.data || [];
+    } catch (err) {
+      console.error(
+        `Error in getActivePTSlabs request pipeline for ${stateName}:`,
+        err.response || err,
+      );
+      throw err;
+    }
+  },
+
+  // ---------------- SALARY COMPONENTS ----------------
+  createSalaryComponent: async (payload) => {
+    try {
+      const res = await axiosInstance.post(postCreateSalaryComponent, payload);
+      console.log("Create Salary Component Response:", res);
+      console.log("Create Salary Component Data:", res.data);
+      return res.data;
+    } catch (err) {
+      console.error("Error in createSalaryComponent:", err.response || err);
+      throw err;
+    }
+  },
+
+  upsertPT: async (payload) => {
+    try {
+      const res = await axiosInstance.put(putUpsertPT, payload);
+      return res.data;
+    } catch (err) {
+      console.error("Error inside upsertPT execution row:", err);
+      throw err;
+    }
+  },
+
+  // ---------------- LEAVE POLICY ----------------
+  addLeavePolicy: async (payload) => {
+    try {
+      const res = await axiosInstance.post("/leave-policy/add", payload);
+      console.log("Add Leave Policy Response:", res);
+      console.log("Add Leave Policy Data:", res.data);
+      return res.data;
+    } catch (err) {
+      console.error("Error in addLeavePolicy:", err.response || err);
+      throw err;
+    }
+  },
+
+  updatePolicyStatus: async (id) => {
+    try {
+      const res = await axiosInstance.patch(`${updatePolicyStatus}/${id}`);
+      console.log("Status Update Response:", res.data);
+      return res.data;
+    } catch (err) {
+      console.error("Error in updatePolicyStatus:", err.response || err);
+      throw err;
+    }
+  },
+
+  getDefaultLeavePolicies: async () => {
+    try {
+      const res = await axiosInstance.get(getDifaultleavePolicy);
+      console.log("Default Leave Policy Response:", res.data);
+      return res.data?.data || res.data || [];
+    } catch (err) {
+      console.error("Error in getDefaultLeavePolicies:", err.response || err);
+      throw err;
+    }
+  },
+
+  cloneLeavePolicy: async (ids) => {
+    try {
+      const res = await axiosInstance.post(postCloneLeavePolicy, {
+        leave_policy_ids: ids,
+      });
+      return res.data;
+    } catch (err) {
+      console.error("Error in cloneLeavePolicy:", err.response || err);
+      throw err;
+    }
+  },
+
+  updateSalaryComponent: async (id, payload) => {
+    try {
+      const url = updateSalaryPayrollComponent(id);
+      const response = await axiosInstance.put(url, payload);
+
+      return {
+        ok: response.status === 200 || response.status === 204,
+        message: response.data?.message || "Updated Successfully",
+        data: response.data,
+      };
+    } catch (error) {
+      console.error("API Error in updateSalaryComponent:", error);
+      throw error;
+    }
+  },
+
+  updateSalaryTemplate: async (id, payload) => {
+    if (!id) throw new Error("Template ID is missing.");
+
+    try {
+      const url = updatePayrollSalaryTemplate(id);
+      const { data, status } = await axiosInstance.put(url, payload);
+
+      return {
+        success: status >= 200 && status < 300,
+        message: data?.message || "Template updated successfully.",
+        data: data?.data || data,
+      };
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message || "Failed to update salary template.";
+      console.error(
+        `[PayrollService] Update Error for ID ${id}:`,
+        err.response || err,
+      );
+      throw new Error(errorMessage);
+    }
+  },
+
+  deleteComponent: async (id) => {
+    try {
+      const response = await axiosInstance.delete(
+        `${deletePayrollComponent}/${id}`,
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error deleting component ${id}:`, error);
+      throw error;
+    }
+  },
+
+  deleteTemplate: async (id) => {
+    try {
+      const response = await axiosInstance.delete(
+        `${deletePayrollTemplate}/${id}`,
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error deleting template ${id}:`, error);
+      throw error;
+    }
+  },
+
+  deleteAllocation: async (id) => {
+    try {
+      const response = await axiosInstance.delete(
+        `${deleteTemplateAllocation}/${id}`,
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Error deleting allocation ${id}:`, error);
+      throw error;
+    }
+  },
+
+  deleteLeavePolicy: async (id) => {
+    try {
+      const url =
+        typeof deleteLeavePolicyUrl === "function"
+          ? deleteLeavePolicyUrl(id)
+          : `${deleteLeavePolicyUrl}/${id}`;
+
+      const res = await axiosInstance.delete(url);
+      console.log(`Delete Leave Policy ${id} Response:`, res.data);
+      return res.data;
+    } catch (err) {
+      console.error(`Error in deleteLeavePolicy (${id}):`, err.response || err);
+      throw err;
+    }
+  },
+
+  getReimbursements: async (signal) => {
+    try {
+      const res = await axiosInstance.get(getReimbursementList, { signal });
+      const actualData = res.data?.data;
+      if (process.env.NODE_ENV === "development") {
+        console.log("💸 Reimbursement API Response:", actualData);
+      }
+      return Array.isArray(actualData) ? actualData : [];
+    } catch (err) {
+      if (err.name === "CanceledError") return [];
+      console.error("Reimbursement Fetch Error:", err.response || err);
+      throw err;
+    }
+  },
+
+  updateReimbursementStatus: async (payload) => {
+    try {
+      const res = await axiosInstance.patch(updateReimbursementStatus, payload);
+      if (process.env.NODE_ENV === "development") {
+        console.groupCollapsed(
+          "%c 📝 Reimbursement: Status Update",
+          "color: #10b981; font-weight: bold;",
+        );
+        console.log("Payload:", payload);
+        console.log("Response:", res.data);
+        console.groupEnd();
+      }
+      return res.data;
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || "Failed to update status";
+      console.error("[Service Error] updateReimbursementStatus 👉", errorMsg);
+      throw new Error(errorMsg);
+    }
+  },
+
+  bulkAllocateLeave: async (payload) => {
+    try {
+      console.log("LOG: Initiating Bulk Allocation Request...");
+      const res = await axiosInstance.post(postLeaveBulkAllocation, payload);
+      return res.data;
+    } catch (err) {
+      console.error(
+        "LOG ERROR: bulkAllocateLeave failed:",
+        err.response || err,
+      );
+      throw err;
+    }
+  },
+
+  bulkAllocatePayroll: async (payload) => {
+    try {
+      const { data } = await axiosInstance.post(
+        postBulkAllocatePayroll,
+        payload,
+      );
+      return data;
+    } catch (err) {
+      const errorData = err.response?.data;
+      const customError = new Error();
+      customError.message =
+        errorData?.message || errorData?.error || "Allocation failed";
+      customError.details = errorData?.errors || null;
+      customError.status = err.response?.status;
+      throw customError;
+    }
+  },
+
+  getPayrollAnalyticsRuns: async (month, year, status) => {
+    try {
+      const url = getPayrollDataAnalyticsList(month, year, status);
+      console.log(
+        `🚀 Fetching Payroll Analytics for: ${month}/${year} (Status: ${status})`,
+      );
+      const res = await axiosInstance.get(url);
+      return res.data;
+    } catch (err) {
+      console.error("❌ Error in getPayrollAnalyticsRuns:", err);
+      throw err;
+    }
+  },
+
+  updatePayrollAnalyticsRuns: async (payload) => {
+    try {
+      const res = await axiosInstance.put(updatePayrollAnalytics, payload);
+      if (process.env.NODE_ENV === "development") {
+        console.log("✅ Payroll Analytics Update Response:", res.data);
+      }
+      return res.data;
+    } catch (err) {
+      console.error(
+        "❌ Error in updatePayrollAnalyticsRuns:",
+        err.response || err,
+      );
+      const errorMsg =
+        err.response?.data?.message || "Failed to update payroll analytics";
+      throw new Error(errorMsg);
+    }
+  },
+
+  populateTdsOpeningBalance: async (financialYearId, file) => {
+    if (!financialYearId) throw new Error("financial_year_id is required");
+    if (!file) throw new Error("A CSV file is required");
+
+    try {
+      const formData = new FormData();
+      formData.append("financial_year_id", String(financialYearId));
+      formData.append("file", file, file.name);
+
+      const res = await axiosInstance.post(
+        postPopulateTdsOpeningBalance,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+
+      if (res.data?.ok === false || res.data?.success === false) {
+        const e = new Error(
+          res.data?.message || "Failed to populate TDS opening balances",
+        );
+        e.details = res.data?.errors || null;
+        throw e;
+      }
+      return res.data;
+    } catch (err) {
+      if (err.details !== undefined) throw err;
+      console.error("Error in populateTdsOpeningBalance:", err.response || err);
+      const errorData = err.response?.data;
+      const customError = new Error(
+        errorData?.message ||
+          errorData?.error ||
+          "Failed to upload TDS opening balances",
+      );
+      customError.details = errorData?.errors || null;
+      customError.status = err.response?.status;
+      throw customError;
+    }
+  },
+
+  getTdsOpeningBalance: async (financialYearId) => {
+    if (!financialYearId) throw new Error("financial_year_id is required");
+
+    try {
+      // The endpoint returns CSV text, not JSON, so keep the raw string.
+      const res = await axiosInstance.get(getTdsOpeningBalance, {
+        params: { financial_year_id: financialYearId },
+        responseType: "text",
+        transformResponse: [(data) => data],
+      });
+
+      const text = typeof res.data === "string" ? res.data : "";
+
+      // A JSON body here means an error wrapped in a 200 response.
+      if (text.trim().startsWith("{")) {
+        try {
+          const json = JSON.parse(text);
+          if (json?.ok === false || json?.success === false) {
+            throw new Error(
+              json?.message || "Failed to load TDS opening balances",
+            );
+          }
+        } catch (parseErr) {
+          if (parseErr instanceof SyntaxError) return text;
+          throw parseErr;
+        }
+        return "";
+      }
+      return text;
+    } catch (err) {
+      if (err.response?.status === 404) return ""; // nothing imported yet
+      if (!err.response) throw err; // our own error from above
+      console.error("Error in getTdsOpeningBalance:", err.response || err);
+
+      let serverMessage;
+      const raw = err.response?.data;
+      if (typeof raw === "string") {
+        try {
+          serverMessage = JSON.parse(raw)?.message;
+        } catch {
+          /* not JSON */
+        }
+      }
+      throw new Error(serverMessage || "Failed to load TDS opening balances");
+    }
+  },
+
+  // ---------------- LEAVE CONFIGURATION ----------------
+  getLeaveRequestConfig: async () => {
+    try {
+      const res = await axiosInstance.get(getLeaveRequestConfigUrl);
+      const data = res.data?.data;
+      return Array.isArray(data) ? data[0] || null : data || null;
+    } catch (err) {
+      console.error("Error in getLeaveRequestConfig:", err.response || err);
+      throw err;
+    }
+  },
+
+  saveLeaveRequestConfig: async (payload) => {
+    try {
+      const res = await axiosInstance.put(putLeaveRequestConfig, payload);
+      return res.data;
+    } catch (err) {
+      console.error("Error in saveLeaveRequestConfig:", err.response || err);
+      throw new Error(
+        err.response?.data?.message || "Failed to save leave request settings",
+      );
+    }
+  },
+
+  deleteLeaveRequestConfig: async () => {
+    try {
+      const res = await axiosInstance.delete(deleteLeaveRequestConfigUrl);
+      return res.data;
+    } catch (err) {
+      console.error("Error in deleteLeaveRequestConfig:", err.response || err);
+      throw err;
+    }
+  },
+
+  getEmploymentTypeLeaveConfigs: async () => {
+    try {
+      const res = await axiosInstance.get(getEmploymentTypeLeaveConfig);
+      return res.data?.data || [];
+    } catch (err) {
+      console.error(
+        "Error in getEmploymentTypeLeaveConfigs:",
+        err.response || err,
+      );
+      throw err;
+    }
+  },
+
+  saveEmploymentTypeLeaveConfig: async (payload) => {
+    // payload: { employment_type_id, can_apply_without_leave_allocation }
+    try {
+      const res = await axiosInstance.put(
+        putEmploymentTypeLeaveConfig,
+        payload,
+      );
+      return res.data;
+    } catch (err) {
+      console.error(
+        "Error in saveEmploymentTypeLeaveConfig:",
+        err.response || err,
+      );
+      throw new Error(
+        err.response?.data?.message ||
+          "Failed to save employment type settings",
+      );
+    }
+  },
+
+  deleteEmploymentTypeLeaveConfig: async (employmentTypeId) => {
+    try {
+      const res = await axiosInstance.delete(
+        `${deleteEmploymentTypeLeaveConfigUrl}/${employmentTypeId}`,
+      );
+      return res.data;
+    } catch (err) {
+      console.error(
+        "Error in deleteEmploymentTypeLeaveConfig:",
+        err.response || err,
+      );
+      throw err;
+    }
+  },
+
+  // ---------------- PAYROLL CONFIGURATION ----------------
+  getPayrollConfiguration: async () => {
+    try {
+      const res = await axiosInstance.get(getPayrollConfiguration);
+      return res.data?.data || res.data || {};
+    } catch (err) {
+      console.error("Error in getPayrollConfiguration:", err.response || err);
+      throw err;
+    }
+  },
+
+  upsertPayrollConfiguration: async (values) => {
+    const payload = buildConfigPayload(values);
+    const response = await axiosInstance.post(
+      upsertPayrollConfiguration,
+      payload,
+    );
+    return response.data;
+  },
+  downloadPayslip: async ({ month, year, user_id }) => {
+    try {
+      const res = await axiosInstance.get(getPayslipDownloadUrl, {
+        params: { month, year, user_id },
+        responseType: "blob",
+      });
+
+      const contentType = res.headers?.["content-type"] || "";
+      console.log("Payslip status:", res.status, "type:", contentType);
+
+      // 200 but not a file (JSON error or HTML from the proxy)
+      if (
+        !contentType.includes("pdf") &&
+        !contentType.includes("octet-stream")
+      ) {
+        const text = await res.data.text();
+        console.error("Payslip non-file response:", text);
+        let msg = "Payslip response is not a file";
+        try {
+          msg = JSON.parse(text)?.message || msg;
+        } catch {}
+        throw new Error(msg);
+      }
+
+      const disposition = res.headers?.["content-disposition"] || "";
+      const match = disposition.match(/filename="?([^"]+)"?/i);
+      const filename = match
+        ? match[1]
+        : `payslip_${user_id}_${month}_${year}.pdf`;
+
+      const blobUrl = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+
+      return true;
+    } catch (err) {
+      let message = err.message || "Failed to download payslip";
+      const data = err.response?.data;
+      if (data instanceof Blob) {
+        try {
+          const text = await data.text();
+          console.error("Payslip error body:", text);
+          message = JSON.parse(text)?.message || message;
+        } catch {}
+      } else if (data?.message) {
+        message = data.message;
+      }
+      console.error("Error in downloadPayslip:", err.response || err);
+      throw new Error(message);
+    }
+  },
+};
+
+export default payrollService;

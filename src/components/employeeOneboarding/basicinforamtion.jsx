@@ -1,0 +1,773 @@
+import React, { useState, useEffect } from "react";
+import { Icon } from "@iconify/react";
+import { ChevronDown } from "lucide-react";
+import { toast } from "react-toastify"; // <ToastContainer /> lives in App.jsx
+import CommonUploadActions from "../../ui/commonupload";
+import { addBasicInformation } from "../../service/employeeService";
+import payrollService from "../../service/payrollService";
+import { calculatePayroll } from "../../service/payrollother"; // use your real service file name
+import { convertToWebp } from "../../components/helpers/imageToWebp"; // reusable WebP converter
+
+const initialFormData = {
+  first_name: "",
+  last_name: "",
+  nick_name: "",
+  email: "",
+  ph_no: "",
+  basic_salary: "",
+  image: null,
+};
+
+// Profile photo: only these image types are accepted, then converted to WebP
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+const formatMoney = (value) =>
+  `₹${Number(value || 0).toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+  })}`;
+
+const formatCalcType = (type) =>
+  String(type || "-")
+    .replace(/_/g, " ")
+    .replace(/^\w/, (c) => c.toUpperCase());
+
+/* ---------- Data helpers ---------- */
+
+// Templates may come back as [], {data: []}, {data:{data: []}} or {templates: []}
+const toList = (res) => {
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res?.data?.data)) return res.data.data;
+  if (Array.isArray(res?.templates)) return res.templates;
+  return [];
+};
+
+// Payroll result may be wrapped in one or more { data: ... } layers
+const unwrapPayroll = (res) => {
+  let d = res;
+  for (let i = 0; i < 3; i++) {
+    const isResult =
+      d &&
+      typeof d === "object" &&
+      ("mappings" in d || "total_annual_ctc" in d);
+    if (!isResult && d?.data && typeof d.data === "object") d = d.data;
+    else break;
+  }
+  return d;
+};
+
+// Keep only digits and one decimal point ("12,00,000" -> "1200000")
+const sanitizeAmount = (v) => {
+  const c = String(v ?? "").replace(/[^\d.]/g, "");
+  const [intPart, ...rest] = c.split(".");
+  return rest.length ? `${intPart}.${rest.join("")}` : intPart;
+};
+
+// Read the saved draft once, synchronously, on first render
+const loadDraft = () => {
+  try {
+    const saved = localStorage.getItem("basicInfoForm");
+    if (!saved) return initialFormData;
+    const parsed = JSON.parse(saved);
+    return {
+      ...initialFormData,
+      ...parsed,
+      basic_salary: sanitizeAmount(parsed.basic_salary),
+      image: null,
+    };
+  } catch {
+    console.error("Failed to parse saved form data");
+    return initialFormData;
+  }
+};
+
+/* ---------- Backend messages -> React-Toastify (no custom texts) ---------- */
+
+// backend `data` (string | array | object) -> list of text lines
+const dataToLines = (data) => {
+  if (data == null || data === "") return [];
+  if (typeof data === "string") return [data];
+  if (Array.isArray(data)) return data.flatMap(dataToLines);
+  if (typeof data === "object") {
+    return Object.entries(data).flatMap(([key, value]) =>
+      dataToLines(value).map((line) =>
+        /^\d+$/.test(key) ? line : `${key}: ${line}`,
+      ),
+    );
+  }
+  return [String(data)];
+};
+
+// find the backend's { message, data } in whatever the service returned/threw
+const findBody = (input) => {
+  const candidates = [
+    input?.response?.data, // axios error
+    input?.responseText, // XHR-style error
+    input?.response,
+    input,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+
+    let body = candidate;
+    if (typeof candidate === "string") {
+      try {
+        body = JSON.parse(candidate);
+      } catch {
+        continue;
+      }
+    }
+
+    if (body && typeof body === "object" && (body.message || body.data)) {
+      return body;
+    }
+  }
+  return null;
+};
+
+// success: show the backend's message
+const showBackendSuccess = (response) => {
+  const message = response?.message ?? response?.data?.message;
+  if (typeof message === "string" && message) toast.success(message);
+};
+
+// error: show the backend's message + the error's data
+const showBackendError = (error) => {
+  const body = findBody(error);
+  const message =
+    (typeof body?.message === "string" && body.message) || error?.message || "";
+  const lines = body ? dataToLines(body.data) : [];
+
+  toast.error(
+    <div>
+      {message && <div style={{ fontWeight: 600 }}>{message}</div>}
+      {lines.map((line, i) => (
+        <div key={i} style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
+          {line}
+        </div>
+      ))}
+    </div>,
+  );
+};
+
+const BasicInformation = ({ goNextStep, onStepComplete }) => {
+  // 🧠 Local form state (draft restored once, no extra effect needed)
+  const [formData, setFormData] = useState(loadDraft);
+
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 💰 Payroll state
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [payrollResult, setPayrollResult] = useState(null);
+  const [showPayrollModal, setShowPayrollModal] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false);
+
+  // ✅ Payroll area shows as soon as a valid Annual Salary is entered
+  const hasSalary = Number(formData.basic_salary) > 0;
+
+  // 💾 Auto-save form data to localStorage
+  // (a File object can't be serialized, so the image is left out of the draft)
+  useEffect(() => {
+    const { image, ...draft } = formData; // eslint-disable-line no-unused-vars
+    localStorage.setItem(
+      "basicInfoForm",
+      JSON.stringify({ ...draft, image: null }),
+    );
+  }, [formData]);
+
+  // 🧹 Free the preview blob URL when it changes / on unmount
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
+  // 📋 Fetch payroll templates (same call SalarySection uses)
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const res = await payrollService.getSalaryTemplates();
+        setTemplates(toList(res));
+      } catch (err) {
+        showBackendError(err);
+      }
+    };
+    fetchTemplates();
+  }, []);
+
+  // 🧩 Handle input changes
+  const handleInputChange = (e) => {
+    const { name } = e.target;
+    const value =
+      name === "basic_salary" ? sanitizeAmount(e.target.value) : e.target.value;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // The old calculation no longer matches the new salary: clear it so
+    // the template is picked again and recalculated
+    if (name === "basic_salary") {
+      setSelectedTemplateId("");
+      setPayrollResult(null);
+      setShowPayrollModal(false);
+    }
+  };
+
+  // 🖼️ Handle file upload: only images, converted to WebP before sending
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = ""; // allows picking the same file again
+    if (!file || !ALLOWED_IMAGE_TYPES.includes(file.type)) return;
+
+    try {
+      const webpFile = await convertToWebp(file, {
+        quality: 0.8,
+        maxWidth: 800,
+        maxHeight: 800,
+      });
+
+      setFormData((prev) => ({ ...prev, image: webpFile }));
+      setImagePreview(URL.createObjectURL(webpFile));
+    } catch (err) {
+      showBackendError(err); // shows the error's own message
+    }
+  };
+
+  // 💰 Template picked: calculate straight away and show the result in a modal
+  // (annual_ctc = Annual Salary field, strict is fixed to false in the service)
+  const handleTemplateChange = async (e) => {
+    const raw = e.target.value;
+    setSelectedTemplateId(raw);
+    setPayrollResult(null);
+    if (!raw) return;
+
+    const annualCtc = Number(formData.basic_salary);
+    if (!(annualCtc > 0)) {
+      setSelectedTemplateId("");
+      toast.error("Enter a valid Annual Salary first.");
+      return;
+    }
+
+    try {
+      setIsCalculating(true);
+      const result = await calculatePayroll({
+        annual_ctc: annualCtc,
+        template_id: Number(raw),
+      });
+      const data = unwrapPayroll(result);
+      if (!data || typeof data !== "object") {
+        throw new Error("No payroll data returned.");
+      }
+      setPayrollResult(data);
+      setShowPayrollModal(true);
+    } catch (error) {
+      console.error("Error calculating payroll:", error);
+      setSelectedTemplateId("");
+      showBackendError(error);
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  // ✅ Submit form and trigger parent progress
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
+
+    // Build the payload exactly as the backend expects
+    const payload = {
+      first_name: formData.first_name.trim(),
+      last_name: formData.last_name.trim(),
+      nick_name: formData.nick_name.trim(),
+      email: formData.email.trim().toLowerCase(),
+      ph_no: formData.ph_no.trim(),
+      basic_salary: String(formData.basic_salary).trim(),
+      image: formData.image, // WebP File -> backend uploads to DigitalOcean Spaces
+    };
+
+    // Empty optional fields are skipped so the backend stores them as NULL
+    // (required-field validation is done by the backend and shown via toast)
+    const formDataToSend = new FormData();
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value !== null && value !== "") {
+        formDataToSend.append(key, value);
+      }
+    });
+
+    // Optional: send the chosen salary template with the employee
+    // (uncomment if your backend accepts it)
+    // if (selectedTemplateId) formDataToSend.append("template_id", selectedTemplateId);
+
+    try {
+      setIsSubmitting(true);
+      const response = await addBasicInformation(formDataToSend);
+
+      // Store backend employee ID for next steps
+      const employeeId = response?.data?.id;
+      if (employeeId) {
+        localStorage.setItem("employeeId", employeeId);
+      }
+
+      // ✅ Backend success message
+      showBackendSuccess(response);
+
+      // 🧹 Remove saved form data
+      localStorage.removeItem("basicInfoForm");
+
+      // 🧠 Save progress in localStorage
+      localStorage.setItem("basicInfoCompleted", "true");
+
+      // Reset local form
+      setFormData(initialFormData);
+      setImagePreview(null);
+      setSelectedTemplateId("");
+      setPayrollResult(null);
+      setShowPayrollModal(false);
+
+      // ✅ Notify parent (progress to next step)
+      if (onStepComplete) {
+        onStepComplete();
+      } else if (goNextStep) {
+        goNextStep();
+      }
+    } catch (error) {
+      console.error("Error creating employee:", error);
+      showBackendError(error); // backend message + error data
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 p-3 bg-[#f9fafb]">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-1">
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-medium text-gray-900">
+            Basic Information
+          </h2>
+          <span className="text-sm text-gray-500">Step 01</span>
+        </div>
+        <CommonUploadActions />
+      </div>
+
+      {/* Profile Card */}
+      <div className="bg-white rounded-lg shadow-sm p-6 pb-10 relative mt-2">
+        {/* Profile Picture */}
+        <div className="relative inline-block mb-6">
+          <label htmlFor="file-upload" className="cursor-pointer">
+            {imagePreview ? (
+              <img
+                src={imagePreview}
+                alt="profile"
+                className="w-20 h-20 rounded-full border-2 border-gray-300 object-cover"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
+                <Icon
+                  icon="solar:camera-outline"
+                  className="w-6 h-6 text-gray-400"
+                />
+              </div>
+            )}
+            <input
+              id="file-upload"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            {imagePreview && (
+              <div
+                className="absolute bottom-2 left-1/2 transform -translate-x-1/2 
+                backdrop-blur-md rounded-full p-1.5 shadow-md transition"
+              >
+                <Icon
+                  icon="solar:camera-outline"
+                  className="w-5 h-5 text-white opacity-90"
+                />
+              </div>
+            )}
+          </label>
+        </div>
+
+        {/* Form Fields */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* First Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              First Name
+            </label>
+            <input
+              type="text"
+              name="first_name"
+              value={formData.first_name}
+              onChange={handleInputChange}
+              placeholder="Enter first name"
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 text-gray-700 text-sm"
+            />
+          </div>
+
+          {/* Last Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Last Name
+            </label>
+            <input
+              type="text"
+              name="last_name"
+              value={formData.last_name}
+              onChange={handleInputChange}
+              placeholder="Enter last name"
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 text-gray-700 text-sm"
+            />
+          </div>
+
+          {/* Nick Name */}
+          <div className="mt-5">
+            <label className="block text-sm font-medium text-gray-700">
+              Nick Name
+            </label>
+            <input
+              type="text"
+              name="nick_name"
+              value={formData.nick_name}
+              onChange={handleInputChange}
+              placeholder="Enter nick name"
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 text-gray-700 text-sm"
+            />
+          </div>
+
+          {/* Email */}
+          <div className="mt-5">
+            <label className="block text-sm font-medium text-gray-700">
+              Email Address
+            </label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              placeholder="Enter email"
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 text-gray-700 text-sm"
+            />
+          </div>
+
+          {/* Phone Number */}
+          <div className="mt-5">
+            <label className="block text-sm font-medium text-gray-700">
+              Contact Number
+            </label>
+            <input
+              type="text"
+              name="ph_no"
+              value={formData.ph_no}
+              onChange={handleInputChange}
+              placeholder="Enter phone number"
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 text-gray-700 text-sm"
+            />
+          </div>
+
+          {/* Salary */}
+          <div className="mt-5">
+            <label className="block text-sm font-medium text-gray-700">
+              Annual Salary
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              name="basic_salary"
+              value={formData.basic_salary}
+              onChange={handleInputChange}
+              placeholder="Annual Salary"
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 text-gray-700 text-sm"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 💰 Salary Template (appears as soon as Annual Salary is entered) */}
+      {hasSalary && (
+        <div className="bg-white rounded-lg shadow-sm p-6 mt-4">
+          <h3 className="text-base font-medium text-gray-900 mb-3">
+            Payroll Calculation
+          </h3>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Annual CTC (from Annual Salary, read-only) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Annual CTC
+              </label>
+              <input
+                type="text"
+                value={formData.basic_salary}
+                readOnly
+                className="mt-1 block w-full rounded-md border border-gray-300 bg-gray-100 p-2 text-gray-700 text-sm cursor-not-allowed"
+              />
+            </div>
+
+            {/* Salary Template: picking one calculates and opens the modal */}
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">
+                  Salary Template
+                </label>
+                {isCalculating && (
+                  <span className="text-xs text-gray-500">Calculating...</span>
+                )}
+                {!isCalculating && payrollResult && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPayrollModal(true)}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    View breakdown
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <select
+                  value={selectedTemplateId}
+                  onChange={handleTemplateChange}
+                  disabled={isCalculating}
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white pl-2 pr-9 py-2 text-gray-700 text-sm appearance-none disabled:opacity-60"
+                >
+                  <option value="">Choose Payroll Template</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={String(t.id)}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                  size={14}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Save Button */}
+      <div className="flex justify-end mt-6">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+          className="bg-[#111827] hover:bg-black text-white text-sm px-5 py-2 rounded-md shadow disabled:opacity-60"
+        >
+          {isSubmitting ? "Saving..." : "Save & Complete"}
+        </button>
+      </div>
+
+      {/* 📊 Payroll result modal */}
+      {showPayrollModal && payrollResult && (
+        <PayrollResultModal
+          result={payrollResult}
+          templateName={
+            templates.find((t) => String(t.id) === String(selectedTemplateId))
+              ?.name || ""
+          }
+          onClose={() => setShowPayrollModal(false)}
+        />
+      )}
+
+      {/* No <ToastContainer /> here: the single global one lives in App.jsx */}
+    </div>
+  );
+};
+
+/* ================= Sub-components ================= */
+
+function SummaryRow({ label, value, strong }) {
+  return (
+    <div className="flex justify-between items-center py-1.5">
+      <span className="text-[12px] text-gray-500">{label}</span>
+      <span
+        className={`text-[13px] ${
+          strong ? "font-medium text-gray-900" : "text-gray-800"
+        }`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function PayrollResultModal({ result, templateName, onClose }) {
+  const mappings = result?.mappings || [];
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/30 flex items-center justify-center z-[9999] p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl shadow-2xl w-[560px] max-w-full max-h-[92vh] flex flex-col"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-gray-100">
+          <div>
+            <h3 className="text-[16px] text-gray-900">Payroll Breakdown</h3>
+            {templateName && (
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                Template: {templateName}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            aria-label="Close"
+            className="text-gray-400 hover:text-black transition-colors"
+            onClick={onClose}
+          >
+            <Icon icon="material-symbols:close" className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 overflow-y-auto space-y-5">
+          {/* Components */}
+          <div className="border border-gray-200 rounded-lg overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-50 text-gray-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Component</th>
+                  <th className="px-3 py-2 font-medium">Type</th>
+                  <th className="px-3 py-2 font-medium text-right">Monthly</th>
+                  <th className="px-3 py-2 font-medium text-right">Annual</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mappings.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-3 py-4 text-center text-gray-500"
+                    >
+                      No components in this template.
+                    </td>
+                  </tr>
+                )}
+                {mappings.map((m, idx) => (
+                  <tr
+                    key={m.id ?? `${m.component_id}-${idx}`}
+                    className="border-t border-gray-100"
+                  >
+                    <td className="px-3 py-2 text-gray-800">
+                      {m.component_name ||
+                        m.name ||
+                        `Component #${m.component_id}`}
+                      {m.is_balancing_component && (
+                        <span className="ml-2 text-[10px] text-gray-600 bg-slate-100 border border-gray-200 rounded-full px-2 py-0.5">
+                          Balancing
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-gray-600">
+                      {formatCalcType(m.calculation_type)}
+                      {m.calculation_type === "percentage_ctc"
+                        ? ` (${m.value}%)`
+                        : ""}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-800">
+                      {formatMoney(m.monthly_amount)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-800">
+                      {formatMoney(m.annual_amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Totals */}
+          <div className="divide-y divide-gray-100">
+            <SummaryRow
+              label="Basic Salary (annual)"
+              value={formatMoney(result?.basic_salary)}
+            />
+            <SummaryRow
+              label="Total CTC (monthly)"
+              value={formatMoney(result?.total_monthly_ctc)}
+            />
+            <SummaryRow
+              label="Total CTC (annual)"
+              value={formatMoney(result?.total_annual_ctc)}
+              strong
+            />
+            <SummaryRow
+              label="Deductions (monthly)"
+              value={formatMoney(result?.total_monthly_deductions)}
+            />
+            <SummaryRow
+              label="Deductions (annual)"
+              value={formatMoney(result?.total_annual_deductions)}
+            />
+            <SummaryRow
+              label="Net Pay (monthly)"
+              value={formatMoney(result?.net_monthly)}
+            />
+            <SummaryRow
+              label="Net Pay (annual)"
+              value={formatMoney(result?.net_annual)}
+              strong
+            />
+          </div>
+
+          {/* Statutory (only when the response has entries) */}
+          {Object.keys(result?.statutory || {}).length > 0 && (
+            <div className="divide-y divide-gray-100">
+              {Object.entries(result.statutory).map(([key, value]) => (
+                <SummaryRow
+                  key={key}
+                  label={formatCalcType(key)}
+                  value={
+                    typeof value === "object"
+                      ? JSON.stringify(value)
+                      : formatMoney(value)
+                  }
+                />
+              ))}
+            </div>
+          )}
+
+          {/* CTC match */}
+          <div
+            className={`flex items-center justify-between rounded-lg px-3 py-2.5 text-xs ${
+              result?.ctc_matched
+                ? "bg-green-50 text-green-700"
+                : "bg-amber-50 text-amber-700"
+            }`}
+          >
+            <span>
+              {result?.ctc_matched
+                ? "Template total matches the annual CTC"
+                : `Template total differs from the annual CTC by ${formatMoney(
+                    result?.ctc_difference,
+                  )}`}
+            </span>
+            <span>Expected {formatMoney(result?.expected_annual_ctc)}</span>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end px-6 py-4 border-t border-gray-100 bg-slate-50/60 rounded-b-2xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg text-[12px] hover:bg-gray-800 transition-all shadow-sm cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default BasicInformation;

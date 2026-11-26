@@ -1,0 +1,384 @@
+import React, { useEffect, useState } from "react";
+import {
+  Download,
+  Search,
+  ArrowLeft,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import DashboardLayout from "../../ui/pagelayout";
+import HeaderGlobal from "../../ui/headerglobal"; // <-- adjust path/filename to where it lives
+import { fetchConsolidatedData } from "../../service/employeeService";
+
+// IMPORT EXCEL LOGIC AND STYLES
+import * as XLSX from "xlsx-js-style";
+import {
+  titleStyle,
+  headerStyle,
+  textCellStyle,
+  numberCellStyle,
+} from "../helpers/exelsheet";
+
+// ---- Current month / year (used as defaults) ----
+const now = new Date();
+const CURRENT_MONTH = String(now.getMonth() + 1).padStart(2, "0"); // "01" - "12"
+const CURRENT_YEAR = String(now.getFullYear());
+
+// First year shown in the dropdown
+const START_YEAR = 2023;
+
+// ["01", "02", ... "12"]
+const MONTHS = Array.from({ length: 12 }, (_, i) =>
+  String(i + 1).padStart(2, "0"),
+);
+
+// [2023, 2024, ... current year]
+const YEARS = Array.from(
+  { length: now.getFullYear() - START_YEAR + 1 },
+  (_, i) => START_YEAR + i,
+);
+
+// "2025-08-05" -> "05-08-2025" (falls back to the raw value / "-")
+const formatJoinDate = (value) => {
+  if (!value) return "-";
+  const parts = String(value).split("-");
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return value;
+};
+
+// Table head cell: Poppins Regular (font-normal overrides the browser's bold <th>)
+const TH = "font-['Poppins'] font-normal px-4 py-3";
+
+const ConsolidatedData = () => {
+  const navigate = useNavigate();
+  const [data, setData] = useState([]);
+  const [month, setMonth] = useState(CURRENT_MONTH); // Default: current month
+  const [year, setYear] = useState(CURRENT_YEAR); // Default: current year
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+
+  const getConsolidatedData = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await fetchConsolidatedData(month, year);
+      setData(result);
+      setCurrentPage(1);
+    } catch (err) {
+      console.error("❌ Error fetching consolidated data:", err);
+      setError(
+        "Failed to load consolidated data. Please check your token or network.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    getConsolidatedData();
+  }, [month, year]);
+
+  const filteredData = data.filter((item) =>
+    item.user_name?.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedData = filteredData.slice(
+    startIndex,
+    startIndex + itemsPerPage,
+  );
+
+  const handlePrev = () => currentPage > 1 && setCurrentPage(currentPage - 1);
+  const handleNext = () =>
+    currentPage < totalPages && setCurrentPage(currentPage + 1);
+
+  const getBadgeColor = (key) => {
+    switch (key) {
+      case "on_time":
+        return "bg-[#d6f6e5] text-[#2c7744]";
+      case "delay_days":
+        return "bg-[#ffede2] text-[#f75402]";
+      case "late_days":
+        return "bg-[#e8f1ff] text-[#0062ff]";
+      case "absent_days":
+        return "bg-[#fde2e2] text-[#d92c2c]";
+      default:
+        return "bg-gray-100 text-gray-500";
+    }
+  };
+
+  // STYLED EXCEL DOWNLOAD LOGIC
+  const handleDownload = () => {
+    if (!data.length) return;
+
+    const headerRow = [
+      "Employee Name",
+      "Join Date",
+      "On Time",
+      "Delay Days",
+      "Late Days",
+      "Absent Days",
+      "Worked Days",
+      "Total Work Days",
+      "Total Days",
+      "Extra Worked Hours",
+    ];
+
+    const dataRows = data.map((item) => [
+      item.user_name || "",
+      formatJoinDate(item.join_date),
+      item.on_time || 0,
+      item.delay_days || 0,
+      item.late_days || 0,
+      item.absent_days || 0,
+      item.total_worked_days || 0,
+      item.total_work_days || 0,
+      item.total_days || 0,
+      item.extra_worked_hours || "00:00:00",
+    ]);
+
+    const sheetData = [
+      ["CONSOLIDATED ATTENDANCE REPORT"],
+      headerRow,
+      ...dataRows,
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+    // Merging the Title Row
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: headerRow.length - 1 } },
+    ];
+
+    // Column Widths
+    ws["!cols"] = [
+      { wch: 30 }, // Name
+      { wch: 14 }, // Join Date
+      { wch: 12 }, // On Time
+      { wch: 12 }, // Delay
+      { wch: 12 }, // Late
+      { wch: 12 }, // Absent
+      { wch: 15 }, // Worked
+      { wch: 15 }, // Work Days
+      { wch: 15 }, // Total Days
+      { wch: 20 }, // Extra Worked Hours
+    ];
+
+    // Applying Styles loop
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+    for (let R = range.s.r; R <= range.e.r; R++) {
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!ws[cellRef]) continue;
+
+        if (R === 0) ws[cellRef].s = titleStyle;
+        else if (R === 1) ws[cellRef].s = headerStyle;
+        else if (typeof ws[cellRef].v === "number")
+          ws[cellRef].s = numberCellStyle;
+        else ws[cellRef].s = textCellStyle;
+      }
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, "Consolidated Report");
+    XLSX.writeFile(wb, `consolidated_report_${month}_${year}.xlsx`);
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="min-h-screen w-full bg-[#f9fafb] p-3">
+        {/* Global header (greeting, notifications, settings) */}
+        <HeaderGlobal />
+
+        {/* Page title row */}
+        <div className="flex items-center gap-3 bg-white px-6 py-3 border rounded-xl my-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center text-sm text-gray-600 hover:text-gray-800"
+          >
+            <ArrowLeft size={16} className="mr-1" />
+            Back
+          </button>
+          <h1 className="text-lg font-medium text-gray-800 font-['Poppins']">
+            Consolidated Data
+          </h1>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-1.5 h-8 text-xs bg-white font-medium text-gray-700 cursor-pointer"
+            >
+              {MONTHS.map((m, idx) => (
+                <option key={m} value={m}>
+                  {new Date(0, idx).toLocaleString("default", {
+                    month: "long",
+                  })}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-1.5 h-8 text-xs bg-white font-medium text-gray-700 cursor-pointer"
+            >
+              {YEARS.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleDownload}
+              className="bg-black text-white px-3 py-1.5 h-8 rounded-md text-xs flex items-center gap-1 hover:bg-gray-800 transition shadow-sm"
+            >
+              <Download className="w-3.5 h-3.5" /> Download
+            </button>
+          </div>
+
+          {/* Search */}
+          <div className="flex items-center gap-1 border px-2 py-1.5 h-8 rounded-md bg-gray-50 text-xs w-36 sm:w-48">
+            <input
+              type="text"
+              placeholder="Search by name"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-transparent w-full focus:outline-none text-xs"
+            />
+            <Search className="w-3.5 h-3.5 text-gray-400" />
+          </div>
+        </div>
+
+        {/* Table Section */}
+        {loading ? (
+          <div className="flex justify-center items-center py-16">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-600" />
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {error}
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-sm">
+            <table
+              className="min-w-full text-[12px] font-['Poppins'] border-separate"
+              style={{ borderSpacing: "0 10px" }}
+            >
+              <thead className="text-black text-[12px] font-['Poppins'] font-normal">
+                <tr className="bg-white shadow-sm">
+                  <th className={`${TH} text-left rounded-tl-lg`}>Name</th>
+                  <th className={`${TH} text-center whitespace-nowrap`}>
+                    Join Date
+                  </th>
+                  <th className={`${TH} text-center`}>On Time</th>
+                  <th className={`${TH} text-center`}>Delay</th>
+                  <th className={`${TH} text-center`}>Late</th>
+                  <th className={`${TH} text-center`}>Absent</th>
+                  <th className={`${TH} text-center`}>Worked</th>
+                  <th className={`${TH} text-center`}>Work Days</th>
+                  <th className={`${TH} text-center`}>Total Days</th>
+                  <th
+                    className={`${TH} text-center rounded-tr-lg whitespace-nowrap`}
+                  >
+                    Extra Work Hours
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-700 font-normal">
+                {paginatedData.length === 0 ? (
+                  <tr>
+                    <td colSpan="10" className="text-center py-8 text-gray-500">
+                      No records found
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedData.map((item, index) => (
+                    <tr
+                      key={index}
+                      className="hover:bg-gray-50 transition bg-white shadow-sm"
+                    >
+                      <td className="px-4 py-3 text-left text-gray-900 rounded-l-lg font-medium">
+                        {item.user_name}
+                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        {formatJoinDate(item.join_date)}
+                      </td>
+                      {[
+                        "on_time",
+                        "delay_days",
+                        "late_days",
+                        "absent_days",
+                      ].map((key) => (
+                        <td key={key} className="px-4 py-3 text-center">
+                          <span
+                            className={`inline-flex items-center justify-center ${getBadgeColor(
+                              key,
+                            )} w-7 h-7 rounded-full`}
+                          >
+                            {item[key]}
+                          </span>
+                        </td>
+                      ))}
+                      <td className="px-4 py-3 text-center">
+                        {item.total_worked_days}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {item.total_work_days}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {item.total_days}
+                      </td>
+                      <td className="px-4 py-3 text-center rounded-r-lg whitespace-nowrap">
+                        {item.extra_worked_hours || "00:00:00"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+
+            {/* Pagination */}
+            {filteredData.length > itemsPerPage && (
+              <div className="flex justify-end items-center gap-3 px-6 py-4 border-t">
+                <button
+                  onClick={handlePrev}
+                  disabled={currentPage === 1}
+                  className="disabled:opacity-30"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-medium text-gray-700">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={handleNext}
+                  disabled={currentPage === totalPages}
+                  className="disabled:opacity-30"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export default ConsolidatedData;

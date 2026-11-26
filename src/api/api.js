@@ -1,0 +1,625 @@
+//leaveService
+
+export const getLeave = "/admin/leave/get";
+export const AddUser = "/user/createstaff";
+export const postLeaveBulkAllocation = "/leave-policy/allocate/staffs";
+export const getEmployeeReferenceNo = "/employee-ref-no/rule/get";
+export const updateEmployeeReferenceNo = (id) =>
+  `/employee-ref-no/rule/update/${id}`;
+export const createEmployeeReferenceNoUrl = "/employee-ref-no/rule/add";
+//AnnouncementService
+
+export const postAnnouncement = "/admin/announcement/add";
+export const Login = "/staff/login";
+export const getAnnouncement = "/admin/announcement/get";
+export const deleteAnnouncement = (id) => `/admin/announcement/delete/${id}`;
+export const updateAnnouncement = (id) => `/admin/announcement/update/${id}`;
+export const postCelebration = "/employee/celebration/upsert";
+export const getCelebrations = "/employee/celebration/list";
+export const deleteCelebration = (type) =>
+  `/employee/celebration/delete?celebration_type=${encodeURIComponent(type)}`;
+export const removeEmoji = (id) => `/announcement/emojis/remove/${id}`;
+// Notifications (employee)
+export const getNotificationCount = "/employee/notification/count";
+export const markNotificationRead = (id) => `/employee/notification/${id}/read`;
+export const markAllNotificationsRead = "/employee/notification/read-all";
+// Interactive Announcement Features (Likes, Comments, Emojis)
+export const addComment = (id) => `/announcement/comment/add/${id}`;
+export const addEmoji = (id) => `/announcement/emojis/add/${id}`;
+export const addLike = (id) => `/announcement/like/add/${id}`;
+
+export const toggleLikeApi = (id) => `/announcement/toggle/like/${id}`;
+export const uploadProfileImage = "staff/uploadimage";
+export const getMypersonalProfile = "/staff/getmypersonalprofile";
+export const updateMypersonalProfile = "staff/updatemypersonalprofile";
+export const getTotalEmployee = "/admin/staffstatus/list";
+export const putStatusUpdate = "/admin/attendance/status/update";
+export const getEmployeeByIdApi = (employeeId) => `/staff/get/${employeeId}`;
+
+export const postEmployeeListbyMonth = "/admin/attendance/listbymonth";
+export const getSubscriptionDetail = "/subscription/details";
+//leaveapproval
+
+export const putLeaveApproval = "/admin/leave/change-status/:leave_id";
+
+//staffstatus
+
+export const getDashboard = "/admin/dashboard/list";
+export const getHappinessRating = "employee/attendance/happiness-rating/today";
+export const getDashboardList = "/admin/dashboard/list";
+export const getAdminAttendanceHappinessGraph =
+  "/admin/staff/attendance/happiness-index/graph";
+export const submitHappinessRating = "/employee/attendance/happiness-rating";
+// Add this in src/api/api.js
+export const getHappinessIndexReport =
+  "/admin/staff/attendance/happiness-index";
+//LOG
+
+export const getLog = "/admin/stafflog/list";
+
+//GetDepartment
+
+export const getDept = "/user/getdept";
+
+//GetStaffs
+
+export const getStaff = "/master/staff";
+
+//manageEmployee
+export const getEmployeeDetails = "/staff/get";
+export const getEmployeeRole = "/master/role";
+export const getActiveUsersLightUrl = "/staff/get-active-users-light";
+export const getStafffilteredLightUrl = "/staff/report/light";
+export const getMyReporteesUrl = "/staff/my-reportees";
+// TimeSheet
+export const getEmployeeTimesheets = (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return `/employee/timesheet/fetch${query ? `?${query}` : ""}`;
+};
+export const upsertTimeSheet = "/employee/timesheet/upsert";
+export const getTimesheetStatuses = "/employee/timesheet/statuses";
+// Admin Timesheets Endpoint Builder
+export const getAdminTimesheets = (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return `/admin/timesheet/fetch${query ? `?${query}` : ""}`;
+};
+//  insurance
+export const getEmployeeInsuranceDetails = (uuid) =>
+  `/admin/insurance/fetch/employee-settings?user_id=${uuid}`;
+export const getInsuranceProviders = "/admin/insurance/providers";
+export const getInsuranceTypes = "/admin/insurance/types";
+export const getCoverageTypes = "/admin/insurance/coverage-types";
+export const upsertInsuranceProvider = "/admin/insurance/upsert/providers";
+export const upsertInsuranceType = "/admin/insurance/upsert/types";
+export const upsertCoverageType = "/admin/insurance/upsert/coverage-types";
+export const updateEmployeeInsurance = `/admin/insurance/upsert/employee-settings`;
+export const cancelInsurance =
+  "/admin/insurance/settings/{insurance_id}/cancel";
+export const getinsuranceClaimList = "/admin/insurance/list-claims";
+export const updateInsuranceClaimDecision = (claimId) =>
+  `/admin/insurance/claims/${claimId}/decision`;
+
+// ---------- DELETE ----------
+export const deleteInsuranceProvider = (id) =>
+  `/admin/insurance/insurance-providers/${id}`;
+
+export const deleteInsuranceType = (id) =>
+  `/admin/insurance/insurance-types/${id}`;
+
+export const deleteCoverageType = (id) =>
+  `/admin/insurance/coverage-types/${id}`; //assetManager
+export const getAssetstype = "/master/asset-type";
+export const getAssetDashboard = "/admin/asset/dashboard";
+export const postCreateAsset = "/admin/asset/add";
+export const getAssetType = "/master/asset-type";
+export const getAssetAllocatebyId = (id) =>
+  `/admin/assetallocation/timeline/get/${id}`;
+export const postAssetAllocation = "/admin/assetallocation/add";
+export const postReturnAsset = "/admin/assetallocation/return";
+export const addAssetType = "/admin/asset-type/add";
+export const FetchAssets = "/admin/asset/get ";
+export const deleteAsset = (id) => `/admin/asset/delete/${id}`;
+
+//report
+export const getStaffReport = "/staff/report";
+export const getReport = "/admin/staffreport/:month";
+export const getReportIndia = "/admin/staff/fullreport";
+export const getDistanceViolation = "/admin/attendance/distance-violation";
+export const getLeaveReport = "/admin/leave/employee/leave/report";
+export const attendanceFullReport = (month, year) =>
+  `/admin/staff/fullreport/${month}/${year}`;
+export const getFetchAttendanceFineRecords = "/admin/attendance/fine-records";
+export const getUnapprovedAbsentReport = (fromDate, toDate) =>
+  `/admin/leave/unapproved-absent?from_date=${fromDate}&to_date=${toDate}`;
+
+//Events and Leave Calendar
+
+export const getLeavebyDate = "/admin/leave/getbydate";
+export const getEventbyDate = "/admin/event/getbydate";
+export const getEvents = "/admin/event/get";
+export const postEvents = "/admin/event/add";
+export const getTimezone = "/master/timezone";
+export const deleteEvent = "/admin/event/delete/:id";
+export const cancelEvent = "/admin/event/cancel/:id";
+export const updateEvent = "/admin/event/update/:id";
+
+//Digital Assets
+
+export const getDigitalDashboard = "/admin/digital-asset/dashboard";
+export const getDigitalAsset = "/admin/digital-asset/get";
+export const postCreateDigitalAsset = "/admin/digital-asset/add";
+export const getAccountType = "/master/account-type";
+export const getAuthenticator = "/master/authenticators";
+export const postAllocateDigital = "/admin/digital-assetallocation/add";
+export const getDigitalAssetById = (id) =>
+  `/admin/digital-assetallocation/timeline/get/${id}`;
+export const postReturnDigital = "/admin/digital-assetallocation/return";
+export const deleteDigitalAsset = (id) => `/admin/digital-asset/delete/${id}`;
+export const updateDigitalAsset = (id) => `/admin/digital-asset/update/${id}`;
+
+//Company Onboarding
+
+export const getCompanyDetails = (id) => `/company/get/${id}`;
+export const updateCompanyDet = "/company/update";
+export const getOrgType = "/admin/organization-type/get";
+export const getCountry = "/master/country";
+export const updateCompany = "/company/update";
+
+export const getCompanyLayouts = "/admin/company/layouts";
+export const companyLayoutByType = (layoutType) =>
+  `/admin/company/layout/${layoutType}`; // layoutType = "email" | "letter"
+export const getCompantClaims = "/admin/list-all-claims"; // GET
+export const approveCompanyClaim = (id) => `/admin/${id}/update-status`; // PUT
+// DELETE /admin/company/delete-layout/{id}/{layout_type}
+export const deleteCompanyLayout = (id, layoutType) =>
+  `/admin/company/delete-layout/${id}/${layoutType}`;
+
+// PUT /admin/company/layout/{layout_type}/{layout_id}/status
+export const companyLayoutStatus = (layoutType, layoutId) =>
+  `/admin/company/layout/${layoutType}/${layoutId}/status`;
+//Company Structure
+
+export const getBranch = "/branch/get";
+export const postBranch = "/branch/add";
+export const postDivision = (id) => `/division/add/${id}`;
+export const postDepartment = "/admin/department/add";
+export const postDesignation = "/admin/designation/add";
+export const getDepartment = "/admin/department/get";
+export const deleteBranchUrl = (id) => `/branch/delete/${id}`;
+export const updateBranchUrl = (id) => `/branch/update/${id}`;
+export const updateDesignation = (id) => `/admin/designation/update/${id}`;
+export const deleteDesignation = (id) => `/admin/designation/delete/${id}`;
+export const updateDepartment = (id) => `/admin/department/update/${id}`;
+export const deleteDepartment = (id) => `/admin/department/delete/${id}`;
+export const updateDivision = "/division/update";
+export const deleteDivision = (id) => `/division/delete/${id}`;
+//Timeline api
+
+export const getwithDivision = "/branch/getwithdivision";
+export const getDesignations = "/admin/designation/get";
+
+//Key perfomance indicator (KPI)
+export const getKpiCriteria = "/kpi/criteria";
+export const postKpiCriteria = "/kpi/criteria";
+export const getKpiSettings = "/kpi/settings";
+export const putKpiSettings = "/kpi/settings";
+export const deleteKpiCriteria = "/kpi/criteria";
+// Organisational Policy
+
+export const postAddAllowance = "/allowance/add";
+export const getAllowanceData = "/allowance/get";
+export const postAddCompliance = "/compliance/add";
+export const getCompliances = "/compliance/get";
+export const postCreatePolicy = "/attendance-policy/add";
+export const getPolicies = "/attendance-policy/get";
+export const getLeavePolicy = "/leave-policy/get";
+export const getPresetAttendanceTemplate = "/attendance-policy/defaults";
+
+export const getRoles = "/master/role";
+export const deletePolicy = "/attendance-policy/delete/:id";
+export const getCompanyPreview = "/company/get";
+export const updatePresetAttendanceTemplate = (id) =>
+  `/attendance-policy/update/defaults/${id}`;
+export const deleteAttendancePolicyUrl = (id) =>
+  `/attendance-policy/delete/${id}`;
+// Holiday
+
+export const getHoliday = "/admin/holiday/get/default";
+export const postAddHoliday = "/admin/holiday/add";
+export const postAddCSV = "/admin/holiday/addcsv";
+// Add this to your api.js
+
+export const updateHoliday = (id) => `/admin/holiday/update/${id}`; // PUT form-data
+export const deleteHoliday = (id) => `/admin/holiday/delete/${id}`; // DELETE
+
+// Holiday Fetching
+export const getAllHolidays = "/admin/holiday/get/all";
+
+export const getFetchAllHolidays = "/admin/holiday/get";
+
+export const getHolidayByMonthYear = (month, year) =>
+  `/admin/holiday/get/${month}/${year}`;
+export const getHolidayByBranch = (branchId) =>
+  `/holiday/getbybranch/${branchId}`;
+export const getStaffHolidays = "/staff/holiday/get";
+
+//Leave Policy
+
+export const postLeavePolicy = "/leave-policy/add";
+export const getApplicabilityCat = "/admin/applicability-category/get";
+export const getGender = "/admin/gender/get";
+export const getMaritalStatus = "/admin/marital-status/get";
+export const getEmploymentType = "/admin/applicability-category/get";
+export const getClubbingPolicy = "/master/leavetype";
+export const getAllLeavePolicy = "/leave-policy/fetch-all";
+export const getLeaveTypesbyUser = "/leave-policy/allocated/get";
+export const getLeavePolicyByEmployee = (userId) =>
+  `/leave-policy/employees/${userId}`;
+
+//Week Off
+
+export const postAddWeekOff = "/admin/weekly-off/add";
+// constants/apiEndpoints.js (or similar)
+export const getWeeklyOffShifts = "/shifts/fetch/weekly-off";
+
+//Employee Onboard
+
+export const postBasicInformation = "/staff/add";
+export const postAddBankInformation = "/staff/addbankinfo";
+export const updateWorkInformation = "/staff/updateworkinfo";
+export const updateHierarchyInfo = "/staff/updatehierarchyinfo";
+export const updatePersonalInfo = "/staff/updatepersonalinfo";
+export const updateIDInfo = "/staff/updateidinfo";
+export const updateContactInfo = "/staff/updatecontactinfo";
+export const updateWorkExperience = "/staff/addworkexperience";
+
+export const updateDependantDetails = "/staff/updatedependantinfo";
+export const updateAdditionalInformation = "/staff/addadditionalinfo";
+export const getAllDetailsStaff = "/staff/get";
+export const putUserActivation = "/staff/toggle-activate";
+export const getWeekOff = "/admin/weekly-off/get/:year";
+export const updateEducationalDetails = "/staff/addeducation";
+export const editEducationalDetails = "/staff/updateeducation/:educationId";
+
+export const getWeeklyOffBranch =
+  "/admin/weekly-off/getbybranch/:year/:branchId";
+
+export const getWeeklyOffDefault = "/admin/weekly-off/default/get/:year";
+//Allocating Policies
+export const allocateLeavePolicy = "/leave-policy/allocate";
+export const getPrivilegeLeavePolicy = "/leave-policy/allocated/get";
+export const allocateAttendancePolicy = "/attendance-policy/allocate";
+export const getAttendancePolicy = "/attendance-policy/allocated/get";
+export const allocateAllowance = "/allowance/allocate";
+export const getPrivilegeAllowance = "/allowance/allocated/get";
+export const getPrivilegeCompliance = "/compliance/allocated/get";
+export const allocateCompliance = "/compliance/allocate";
+export const allocateRoles = "/staff/update/user_type/";
+export const editWorkHourPolicy = "/attendance-policy/update";
+export const getShifts = "/shifts/fetch";
+export const getEmployeeShifts = "/shifts/filtered";
+export const deleteShiftUrl = (id) => `/shifts/delete/${id}`;
+
+export const deleteLeavePolicy = (id) => `/leave-policy/delete/${id}`;
+export const deleteAllowance = "/allowance/delete/:id";
+export const deleteCompliance = "/compliance/delete/:id";
+export const deleteBranch = "/branch/delete/:id";
+
+export const postBulkUpload = "/staff/bulkupload";
+export const AddStudentApi = "/leads/addstudent";
+export const employeeDelete = "/staff/delete/:id";
+export const getEmployeeType = "/master/employment-type";
+export const getEmployeeStatus = "/master/employment-status";
+export const companyPreview = "/company/preview/get";
+export const getDepartmentTimeline = "/admin/department/heirarchy/get";
+
+//Advance Salary
+export const postCreateAdvanceSalary = "/advance-salary/add";
+
+//Travel
+
+export const postAddTravel = "/travel/add";
+export const getTravelData = "/travel/get";
+
+//Salary policy
+
+//Advance salary
+
+export const getAdvanceSalary = "/advance-salary/get";
+export const postAdvanceSalary = "/advance-salary/add";
+export const putAdvanceSalaryStatus = "/advance-salary/change-status/:id";
+export const deleteAdvanceSalary = "/advance-salary/delete/:id";
+
+//Reset Password
+
+export const postResetPassword = "/staff/reset-password";
+export const sendResetPasswordEmail = "/staff/forgot-password";
+export const forgotPassword = "/staff/forgot-otpverify";
+export const confirmForgotPassword = "/staff/forgot-confirm";
+// api/api.js
+export const staffLogout = "/staff/logout";
+//Work from home
+export const getWorkFromHome = "/admin/wfh/get";
+export const updateStatus = "/admin/wfh/update";
+
+//Exit Process
+export const getTableData = "/exit-process/get";
+export const updateQuestionnaire = "/exit-process/update/questionaire";
+export const postSeparation = "/exit-process/update/initialstep";
+export const getByIdSeparation = "/exit-process/get/:id";
+export const updateCheckList = "/exit-process/update/checklist";
+
+//Employee Calendar
+export const getEmployeeCalendar = "/admin/staff/workhours/{month}";
+export const postEmployeeCalendar = "/admin/attendance/listbymonth";
+
+//File Upload for written Policy
+export const writtenFileUpload = "/company/policy-document/add";
+// Document List (Doc Configuration)
+export const documentListAdd = "/document-list/add";
+export const documentListUpdate = "/document-list/update"; // + /{id}
+export const documentListGet = "/document-list/get";
+export const documentListDelete = "/document-list/delete"; // + /{id}
+//Attachments
+export const uploadAttachment = "/staff/admin/document/upload/{uuid}";
+export const getCategory = "/admin/document-category/get";
+export const getAttachments = "/staff/admin/document/get/{uuid}";
+
+//Hiring
+export const getPlatforms = "/admin/platform/get";
+export const getVacancies = "/company/vaccancy/get";
+export const addVacancies = "/company/vaccancy/add";
+export const getJobEnquiries = "/company/jobApplications/list";
+export const updateApplicationStatus = "/job-applications/update-status";
+export const sendInvitationOnHire =
+  "/company/jobApplications/send/invitation-on-hire/";
+export const sendRejectionMail = "/company/jobApplications/send/rejection/";
+
+// src/api/api.js
+export const reviewApplication = "/job-applications/move-to/under-review";
+
+// Employee Basic Info
+export const updateBasicInfo = (id) => `/staff/updatebasicinfo/${id}`;
+
+// Employee Work Info
+export const getWorkInformations = (id) => `/staff/workinfo/${id}`;
+export const updateWorkInformations = (id) => `/staff/updateworkinfo/${id}`;
+
+// Attendance
+export const getDailyAttendance = "/admin/attendance/musterroll";
+
+// Consolidated Data
+export const getConsolidatedData = "/admin/staff/consolidated";
+
+export const postShiftcreate = "/shifts/add";
+export const getAttendancepolicy = "attendance-policy/get";
+export const getEmailPlaceholders = "/admin/email/placeholders"; // ✅ add this
+export const getManualPurposes = "/admin/manual-purposes";
+export const postSendCustomEmailByPurpose =
+  "/admin/send/custom-email/by-purpose/{purpose}";
+export const getPurposePlaceholders = "admin/purpose/placeholders/{purpose}";
+export const postSendCustomEmail = "/admin/send/custom-email";
+export const getEmailPurposes = "admin/available-purposes";
+export const postCreateEmailTemplate = "admin/create/templates";
+export const getLetterPurposes = "/letter/list-purposes";
+export const deleteEmailTemplate = (id) => `admin/templates/${id}`;
+export const getEmailTemplates = "admin/templates";
+export const getGeneratedLettersUrl = "/letter/generated";
+export const deleteGeneratedLetterUrl = (id) => `/letter/generated/${id}`;
+export const putUpdateLetterPdfTemplate = "/letter/template/update";
+export const updateEmailTemplate = "admin/notification-templates/{purpose}";
+
+export const uploadEmailTemplateFile = "admin/upload/templates";
+
+export const getDefulatEmailTemplate = "/admin/defaults";
+
+export const postCloneEmailTemplate = "/admin/clone-default";
+export const postAllocatePayarollTemplate = "/api/payroll/template-allocations";
+export const postPopulateTdsOpeningBalance =
+  "/api/payroll/tds/opening-balance/populate";
+export const getTdsOpeningBalance = "/api/payroll/tds/opening-balance";
+export const postGenerateLetter = "/letter/generate";
+export const postSendLetter = "/letter/send";
+export const postCreateLetterPdfTemplate = "/letter/template/create";
+export const getPayslipDownloadUrl = "/api/payroll/analytics/payslip";
+// FIXED
+export const getUserPayrollTemplateAllocations = (userId) =>
+  `/api/payroll/template-allocations/user?user_id=${userId}`;
+
+export const postPayrollAttendance = "/api/payroll/calculate/attendance";
+
+export const getEmployeeBankInfo = "/staff/employees/bank-info";
+
+export const getPayrollAnalyticsRun = "/api/payroll/analytics/run";
+export const getPayrollConfiguration = "/api/payroll/analytics/payroll/config";
+export const upsertPayrollConfiguration =
+  "/api/payroll/analytics/payroll/config";
+
+export const getPayrollAnalyticsResult =
+  " /api/payroll/analytics/list/all-runs";
+export const postBulkAllocatePayroll = "/api/payroll/template-allocations";
+export const getPayrollDataAnalyticsList = (month, year, status) =>
+  `/api/payroll/analytics/list/all-runs?month=${month}&year=${year}&status=${status}`;
+export const updatePayrollAnalytics = "/api/payroll/analytics/update";
+
+export const getSalaryTemplates = "/api/payroll/templates";
+export const getEpfStatus = "/api/payroll/statutory/epf";
+export const postEnableEpf = "/api/payroll/statutory/epf/enable";
+export const postDisableEpf = "/api/payroll/statutory/epf/disable";
+
+export const getEsiStatus = "/api/payroll/statutory/esi";
+export const postEnableEsi = "/api/payroll/statutory/esi/enable";
+export const postDisableEsi = "/api/payroll/statutory/esi/disable";
+
+export const getPtStatus = "/api/payroll/statutory/professional-tax";
+
+export const getLwfStatus = "/api/payroll/statutory/lwf";
+export const postEnableLwf = "/api/payroll/statutory/lwf/enable";
+export const postDisableLwf = "/api/payroll/statutory/lwf/disable";
+export const putUpsertLwf = "/api/payroll/statutory/lwf/upsert";
+export const getptslabs =
+  "/api/payroll/statutory/professional-tax/slabs/active";
+export const postCreateSalaryComponent = "/api/payroll/components";
+export const CalculatePayroll = "/api/payroll/calculate";
+
+export const getLwfStateRules = "/api/payroll/statutory/lwf/rules/states";
+export const getLwfRulesByState = "/api/payroll/statutory/lwf/rules";
+export const putUpsertPT = "/api/payroll/statutory/professional-tax/upsert";
+export const getTDS = "/api/payroll/tds/company-settings";
+export const putUpsertTDS = "/api/payroll/tds/upsert/company-settings";
+export const getTaxRegimes = "/api/payroll/tds/tax-regimes";
+export const getFinancialYears = "/api/payroll/tds/financial-year/active";
+export const getDeclarationList = "/api/payroll/tds/admin/list-declarations";
+export const approveOrRejectDeclaration =
+  "/api/payroll/tds/admin/declarations/approve";
+export const DeleteDeclaration = "/api/payroll/tds/admin/delete-declarations";
+export const getTdsDeductionSections = "/api/payroll/tds/deduction-sections";
+export const getEmployeeUserProfile =
+  "/api/payroll/tds/admin/employee/user-profile";
+export const overrideTaxProofile =
+  "/api/payroll/tds/admin/employee/tax-profile/override";
+// Attendance Policy
+export const postAttendancePolicyAdd = "/attendance-policy/add";
+
+export const getShiftAttendanceUserType = (uuid) =>
+  `/master/shift-attendance-user-type/${uuid}`;
+
+export const putToggleUserActivate = (uuid, activate) =>
+  `/staff/toggle-activate/${uuid}?activate=${activate}`;
+
+export const deleteStaffUser = (uuid) => `/staff/delete/${uuid}`;
+
+export const getpolicyLookup = "/staff/get-by/single-filter";
+
+export const updatePolicyStatus = "/leave-policy/status";
+
+export const getEmployeePolicy = (uuid) => `/leave-policy/employees/${uuid}`;
+
+/**
+ * Fetches the list of device change requests for the staff module
+ */
+export const getDeviceChangeRequests = "/staff/device/show-requests";
+export const putApproveDeviceRequestBase = "/staff/device/approve";
+export const getDeviceHistoryByUser = (uuid) => `/staff/device-history/${uuid}`;
+
+// Shift & Privilege Endpoints
+export const fetchShiftsUrl = "/shifts/fetch";
+export const allocateShiftUrl = "/shifts/allocate";
+export const companyShiftSwapLogsUrl = "/shifts/company/shift-swap-logs";
+export const userShiftDetailsUrl = (uuid) =>
+  `/master/shift-attendance-user-type/${uuid}`;
+
+export const ShiftSwapStatusChangeUrl =
+  "/shifts/employee/shift-swap-requests/respond";
+
+export const getShiftMappedPolicies = "/shifts/mapped-policies";
+export const userLocationDeviceUrl = (uuid) =>
+  `/master/location-device/${uuid}`;
+export const getEmployeeLeavePolicy = (uuid) =>
+  `/leave-policy/employees/${uuid}`;
+
+export const fetchEffectiveAllocations = "/shifts/effective-allocations";
+export const postSwapShift = "/shifts/admin/swap";
+
+export const allocateEmployeePolicy = "/leave-policy/allocate/staffs";
+
+export const getDifaultleavePolicy = "/leave-policy/fetch-default";
+export const postCloneLeavePolicy = "/leave-policy/clone-defaults";
+export const getReimbursementList = "/api/payroll/reimbursements/list";
+export const updateReimbursementStatus = "/api/payroll/reimbursements/status";
+export const updateSalaryPayrollComponent = (id) =>
+  `/api/payroll/components/${id}`;
+export const getDeleteUser = "/staff/admin/deleted-users";
+// Change this:
+// export const updatePayrollSalaryTemplate = (id) => `/api/payroll/templates${id}`;
+
+// To THIS (Notice the "/" before the ID):
+export const updatePayrollSalaryTemplate = (id) =>
+  `/api/payroll/templates/${id}`;
+
+export const getPayrollcomponents = "api/payroll/components";
+export const deletePayrollComponent = "/api/payroll/components";
+export const deletePayrollTemplate = "/api/payroll/templates";
+export const deleteTemplateAllocation = "/api/payroll/template-allocations";
+
+export const updateAttendancePolicy = (id) => `/attendance-policy/update/${id}`;
+
+export const updateLeavePolicy = (id) => `/leave-policy/update/${id}`;
+
+export const regularizeAttendanceApproval =
+  "/admin/attendance/regularize/approval";
+export const RemainingRegularization = (uuid) =>
+  `/admin/attendance/regularization/remaining/${uuid}`;
+
+// Notification
+export const getAllNotification = "/employee/notification/get";
+
+// KPI dashboards
+// KPI dashboards
+export const getKpiCompanyDashboard = "/kpi/dashboard/company";
+export const getKpiTeamDashboard = "/kpi/dashboard/team";
+export const getKpiEmployeeDashboard = (userId) =>
+  `/kpi/dashboard/employee/${userId}`;
+
+//chat
+export const getChatConversations = "/employee/chat/conversations"; // confirm: must return "Conversations retrieved"
+export const getChatMessages = (id) => `/employee/chat/${id}/messages`; // GET: same path as send, guess
+export const sendChatMessage = (id) => `/employee/chat/${id}/messages`; // confirmed from your docs
+
+export const getChatMembers = (id) => `/employee/chat/${id}/members`; // guess
+export const createChatDepartment = "/employee/chat/department";
+export const createChatChannel = "/employee/chat/group";
+export const startChatDm = "/employee/chat/direct"; // confirmed
+export const deleteChatConversation = (id) => `/employee/chat/${id}`;
+export const sendChatAttachment = (id) => `/employee/chat/${id}/attachments`; //
+export const deleteChatMessages = (id) => `/employee/chat/${id}/messages`;
+
+export const markChatDelivered = (id) => `/employee/chat/${id}/delivered`;
+export const markChatReadUpTo = (id) => `/employee/chat/${id}/read`;
+export const getChatMediaCounts = (id) => `/employee/chat/${id}/media/counts`;
+export const getChatMedia = (id) => `/employee/chat/${id}/media`;
+export const addChatReaction = (id, mid) =>
+  `/employee/chat/${id}/messages/${mid}/reactions`;
+export const removeChatReaction = (id, mid, emoji) =>
+  `/employee/chat/${id}/messages/${mid}/reactions?emoji=${encodeURIComponent(emoji)}`;
+export const addChatParticipants = (id) =>
+  `/employee/chat/${id}/add-participants`;
+export const pinChatMessage = (id, mid) =>
+  `/employee/chat/${id}/messages/${mid}/pin`;
+export const unpinChatMessage = (id, mid) =>
+  `/employee/chat/${id}/messages/${mid}/unpin`;
+export const getChatPins = (id) => `/employee/chat/${id}/pins`;
+export const removeChatParticipants = (id) =>
+  `/employee/chat/${id}/participants`;
+export const editChatMessage = (id, mid) =>
+  `/employee/chat/${id}/messages/${mid}`;
+//Teams
+export const getAdminProjectsOverview = "/admin/projects/overview";
+export const getAdminProjectsTaskStatus = "/admin/projects/task-status";
+export const getManagerProjectStatuses = "/manager/projects/statuses";
+
+//Exit Process
+
+export const updateExitInitialStep = "/admin/exit-process/update/initial-step";
+
+// 6. PUT  /admin/exit-process/update/checklist
+export const updateExitChecklist = "/admin/exit-process/update/checklist";
+
+// 7. GET  /admin/exit-process/list-all
+export const getExitProcessList = "/admin/exit-process/list-all";
+
+// 8. GET  /admin/exit-process/get/{id}
+export const getExitProcessById = (id) =>
+  `/admin/exit-process/get/${encodeURIComponent(id)}`;
+// ---------------- LEAVE CONFIGURATION: REQUEST SETTINGS ----------------
+export const getLeaveRequestConfig = "/leave-policy/company/request-config";
+export const putLeaveRequestConfig = "/leave-policy/company/request-config";
+export const deleteLeaveRequestConfig = "/leave-policy/company/request-config"; // + /{settings_id}
+
+// ---------------- LEAVE CONFIGURATION: EMPLOYMENT TYPE SETTINGS ----------------
+export const getEmploymentTypeLeaveConfig =
+  "/leave-policy/company/employement-type-config";
+export const putEmploymentTypeLeaveConfig =
+  "/leave-policy/company/employement-type-config";
+export const deleteEmploymentTypeLeaveConfig =
+  "/leave-policy/company/employement-type-config"; // + /{settings_id}
